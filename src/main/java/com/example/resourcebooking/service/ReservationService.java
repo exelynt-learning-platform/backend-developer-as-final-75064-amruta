@@ -154,24 +154,6 @@ public class ReservationService {
     }
 
     /**
-     * Legacy signature overloaded for backwards compatibility if needed.
-     */
-    public Page<ReservationResponse> getReservations(
-            Authentication authentication,
-            ReservationStatus status,
-            BigDecimal minPrice,
-            BigDecimal maxPrice,
-            int page,
-            int size,
-            String sortBy,
-            String direction) {
-
-        ReservationSearchCriteria criteria = new ReservationSearchCriteria(
-                status, minPrice, maxPrice, page, size, sortBy, direction);
-        return getReservations(authentication, criteria);
-    }
-
-    /**
      * Retrieves a single reservation by ID after verifying the caller's access permissions.
      *
      * @param id             the reservation ID
@@ -193,8 +175,8 @@ public class ReservationService {
     }
 
     /**
-     * Updates an existing reservation's resource, time window, and status (for admins)
-     * after validating availability, time validity, ownership, and absence of overlapping bookings.
+     * Updates an existing reservation's resource, time window, and status.
+     * When updated by a regular user, the status is strictly reset to PENDING for re-approval.
      *
      * @param id             the reservation ID to update
      * @param request        the updated reservation details
@@ -223,13 +205,20 @@ public class ReservationService {
         reservation.setEndTime(request.getEndTime());
         reservation.setPrice(resource.getPrice());
 
-        // Admins can update the reservation status if provided
-        if (user.getRole() == Role.ADMIN && request.getStatus() != null) {
-            reservation.setStatus(request.getStatus());
+        // Status update logic:
+        // If updated by ADMIN, apply requested status if provided.
+        // If updated by regular USER, reset status to PENDING so changes require re-approval.
+        if (user.getRole() == Role.ADMIN) {
+            if (request.getStatus() != null) {
+                reservation.setStatus(request.getStatus());
+            }
+        } else {
+            reservation.setStatus(ReservationStatus.PENDING);
         }
 
         Reservation updatedReservation = reservationRepository.save(reservation);
-        log.info("Updated reservation id={} by user='{}'", id, user.getUsername());
+        log.info("Updated reservation id={} by user='{}' [role={}], status={}",
+                id, user.getUsername(), user.getRole(), updatedReservation.getStatus());
 
         return toResponse(updatedReservation);
     }
@@ -506,16 +495,17 @@ public class ReservationService {
 
     private ReservationResponse toResponse(Reservation reservation) {
 
-        return new ReservationResponse(
-                reservation.getId(),
-                reservation.getUser().getId(),
-                reservation.getUser().getUsername(),
-                reservation.getResource().getId(),
-                reservation.getResource().getName(),
-                reservation.getStartTime(),
-                reservation.getEndTime(),
-                reservation.getPrice(),
-                reservation.getStatus(),
-                reservation.getCreatedAt());
+        return ReservationResponse.builder()
+                .id(reservation.getId())
+                .userId(reservation.getUser().getId())
+                .username(reservation.getUser().getUsername())
+                .resourceId(reservation.getResource().getId())
+                .resourceName(reservation.getResource().getName())
+                .startTime(reservation.getStartTime())
+                .endTime(reservation.getEndTime())
+                .price(reservation.getPrice())
+                .status(reservation.getStatus())
+                .createdAt(reservation.getCreatedAt())
+                .build();
     }
 }

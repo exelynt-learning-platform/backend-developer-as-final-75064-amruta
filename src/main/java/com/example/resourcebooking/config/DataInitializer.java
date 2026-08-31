@@ -1,6 +1,8 @@
 package com.example.resourcebooking.config;
 
-import com.example.resourcebooking.model.*;
+import com.example.resourcebooking.model.Resource;
+import com.example.resourcebooking.model.Role;
+import com.example.resourcebooking.model.User;
 import com.example.resourcebooking.repository.ResourceRepository;
 import com.example.resourcebooking.repository.UserRepository;
 
@@ -10,16 +12,31 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import javax.annotation.PostConstruct;
 import java.math.BigDecimal;
 
+/**
+ * Configuration that seeds default administrative and standard users along with initial bookable resources.
+ * Validates that seed credentials are properly supplied.
+ */
 @Configuration
 public class DataInitializer {
 
-    @Value("${seed.admin.password}")
+    @Value("${seed.admin.password:}")
     private String adminPassword;
 
-    @Value("${seed.user.password}")
+    @Value("${seed.user.password:}")
     private String userPassword;
+
+    @PostConstruct
+    public void validateSeedConfiguration() {
+        if (adminPassword == null || adminPassword.isBlank()) {
+            throw new IllegalStateException("SEED_ADMIN_PASSWORD environment variable is required and must not be blank.");
+        }
+        if (userPassword == null || userPassword.isBlank()) {
+            throw new IllegalStateException("SEED_USER_PASSWORD environment variable is required and must not be blank.");
+        }
+    }
 
     @Bean
     CommandLineRunner initializeData(
@@ -57,7 +74,6 @@ public class DataInitializer {
             if (resourceRepository.count() == 0) {
 
                 Resource room = new Resource();
-
                 room.setName("Conference Room A");
                 room.setDescription("Large conference room");
                 room.setType("ROOM");
@@ -65,7 +81,6 @@ public class DataInitializer {
                 room.setPrice(new BigDecimal("500.00"));
 
                 Resource projector = new Resource();
-
                 projector.setName("Projector");
                 projector.setDescription("HD Projector");
                 projector.setType("EQUIPMENT");
@@ -73,7 +88,6 @@ public class DataInitializer {
                 projector.setPrice(new BigDecimal("200.00"));
 
                 Resource car = new Resource();
-
                 car.setName("Company Car");
                 car.setDescription("Sedan for official use");
                 car.setType("VEHICLE");
@@ -81,7 +95,6 @@ public class DataInitializer {
                 car.setPrice(new BigDecimal("1500.00"));
 
                 Resource laptop = new Resource();
-
                 laptop.setName("Laptop");
                 laptop.setDescription("Dell business laptop");
                 laptop.setType("EQUIPMENT");

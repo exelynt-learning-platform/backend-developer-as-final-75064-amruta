@@ -274,8 +274,47 @@ class ReservationServiceTest {
     }
 
     @Test
-    @DisplayName("Should update reservation when valid and no overlapping reservation")
+    @DisplayName("Should update reservation when valid and reset status to PENDING for regular USER")
     void testUpdateReservation_Success() {
+        Reservation existing = new Reservation();
+        existing.setId(100L);
+        existing.setUser(testUser);
+        existing.setResource(testResource);
+        existing.setStartTime(start);
+        existing.setEndTime(end);
+        existing.setPrice(testResource.getPrice());
+        existing.setStatus(ReservationStatus.CONFIRMED); // Initially confirmed
+        existing.setCreatedAt(LocalDateTime.now());
+
+        when(reservationRepository.findById(100L)).thenReturn(Optional.of(existing));
+        when(authentication.isAuthenticated()).thenReturn(true);
+        when(authentication.getName()).thenReturn("john_doe");
+        when(userRepository.findByUsername("john_doe")).thenReturn(Optional.of(testUser));
+        when(resourceRepository.findById(10L)).thenReturn(Optional.of(testResource));
+        when(reservationRepository.existsOverlappingReservationExcludingId(
+                eq(10L), eq(100L), eq(start), eq(end), eq(ReservationStatus.CANCELLED))).thenReturn(false);
+        when(reservationRepository.save(any(Reservation.class))).thenAnswer(invocation -> {
+            Reservation r = invocation.getArgument(0);
+            assertEquals(ReservationStatus.PENDING, r.getStatus()); // Verify reset to PENDING
+            return r;
+        });
+
+        ReservationRequest request = new ReservationRequest();
+        request.setResourceId(10L);
+        request.setStartTime(start);
+        request.setEndTime(end);
+        request.setStatus(ReservationStatus.CONFIRMED); // Non-admin tries to pass confirmed
+
+        ReservationResponse response = reservationService.update(100L, request, authentication);
+        assertNotNull(response);
+        assertEquals(100L, response.getId());
+        assertEquals(ReservationStatus.PENDING, response.getStatus());
+        verify(reservationRepository).save(existing);
+    }
+
+    @Test
+    @DisplayName("ADMIN updating reservation can set status to CONFIRMED")
+    void testUpdateReservation_AdminCanChangeStatus() {
         Reservation existing = new Reservation();
         existing.setId(100L);
         existing.setUser(testUser);
@@ -288,22 +327,22 @@ class ReservationServiceTest {
 
         when(reservationRepository.findById(100L)).thenReturn(Optional.of(existing));
         when(authentication.isAuthenticated()).thenReturn(true);
-        when(authentication.getName()).thenReturn("john_doe");
-        when(userRepository.findByUsername("john_doe")).thenReturn(Optional.of(testUser));
+        when(authentication.getName()).thenReturn("admin");
+        when(userRepository.findByUsername("admin")).thenReturn(Optional.of(adminUser));
         when(resourceRepository.findById(10L)).thenReturn(Optional.of(testResource));
         when(reservationRepository.existsOverlappingReservationExcludingId(
                 eq(10L), eq(100L), eq(start), eq(end), eq(ReservationStatus.CANCELLED))).thenReturn(false);
-        when(reservationRepository.save(any(Reservation.class))).thenReturn(existing);
+        when(reservationRepository.save(any(Reservation.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ReservationRequest request = new ReservationRequest();
         request.setResourceId(10L);
         request.setStartTime(start);
         request.setEndTime(end);
+        request.setStatus(ReservationStatus.CONFIRMED);
 
         ReservationResponse response = reservationService.update(100L, request, authentication);
         assertNotNull(response);
-        assertEquals(100L, response.getId());
-        verify(reservationRepository).save(existing);
+        assertEquals(ReservationStatus.CONFIRMED, response.getStatus());
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.example.resourcebooking.controller;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -42,6 +43,7 @@ public class ReservationController {
      * @return created reservation
      */
     @PostMapping
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     public ResponseEntity<ReservationResponse> create(
             @Valid @RequestBody ReservationRequest request,
             Authentication authentication) {
@@ -59,6 +61,7 @@ public class ReservationController {
      * @return page of reservations
      */
     @GetMapping
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     public ResponseEntity<Page<ReservationResponse>> getReservations(
             Authentication authentication,
             @ModelAttribute ReservationSearchCriteria criteria) {
@@ -75,6 +78,7 @@ public class ReservationController {
      * @return reservation details
      */
     @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN') or @reservationSecurity.isOwner(#id, authentication)")
     public ResponseEntity<ReservationResponse> getById(
             @PathVariable Long id,
             Authentication authentication) {
@@ -92,6 +96,7 @@ public class ReservationController {
      * @return updated reservation
      */
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN') or @reservationSecurity.isOwner(#id, authentication)")
     public ResponseEntity<ReservationResponse> update(
             @PathVariable Long id,
             @Valid @RequestBody ReservationRequest request,
@@ -109,6 +114,7 @@ public class ReservationController {
      * @return no content response
      */
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN') or @reservationSecurity.isOwner(#id, authentication)")
     public ResponseEntity<Void> delete(
             @PathVariable Long id,
             Authentication authentication) {

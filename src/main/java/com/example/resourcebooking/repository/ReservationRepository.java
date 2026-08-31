@@ -3,19 +3,38 @@ package com.example.resourcebooking.repository;
 import com.example.resourcebooking.model.Reservation;
 import com.example.resourcebooking.model.ReservationStatus;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 /**
- * Spring Data JPA repository for {@link Reservation} entities.
+ * Spring Data JPA repository for {@link Reservation} entities with eager association fetching.
  */
 public interface ReservationRepository
         extends JpaRepository<Reservation, Long>,
                 JpaSpecificationExecutor<Reservation> {
+
+    /**
+     * Eagerly fetches user and resource associations to prevent LazyInitializationException under open-in-view=false.
+     */
+    @Override
+    @EntityGraph(attributePaths = {"user", "resource"})
+    Page<Reservation> findAll(Specification<Reservation> spec, Pageable pageable);
+
+    /**
+     * Eagerly fetches user and resource associations by reservation ID.
+     */
+    @Override
+    @EntityGraph(attributePaths = {"user", "resource"})
+    Optional<Reservation> findById(Long id);
 
     /**
      * Checks if any reservation already exists for the given resource within an overlapping time range,

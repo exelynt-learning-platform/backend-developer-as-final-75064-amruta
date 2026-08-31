@@ -74,8 +74,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 }
             }
         } catch (JwtException | IllegalArgumentException e) {
-            log.warn("Invalid JWT token received for URI {}: {}", request.getRequestURI(), e.getMessage());
-            // Invalid JWT is treated as unauthenticated.
+            String sanitizedUri = request.getRequestURI() != null
+                    ? request.getRequestURI().replaceAll("[\r\n]", "")
+                    : "unknown";
+            log.warn("Invalid JWT token received for path: {}", sanitizedUri);
             SecurityContextHolder.clearContext();
         }
 
