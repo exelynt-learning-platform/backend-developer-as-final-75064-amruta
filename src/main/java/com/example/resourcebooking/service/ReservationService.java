@@ -27,6 +27,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -426,13 +427,13 @@ public class ReservationService {
 
     private User getAuthenticatedUser(Authentication authentication) {
 
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new AccessDeniedException("Authentication required");
+        if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getName())) {
+            throw new BadCredentialsException("Authentication required");
         }
 
         return userRepository
                 .findByUsername(authentication.getName())
-                .orElseThrow(() -> new AccessDeniedException("Authenticated user not found"));
+                .orElseThrow(() -> new BadCredentialsException("Authenticated user no longer exists"));
     }
 
     private void checkOwnership(Reservation reservation, User user) {

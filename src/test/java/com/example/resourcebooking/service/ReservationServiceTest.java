@@ -26,6 +26,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.Authentication;
 
 import java.math.BigDecimal;
@@ -432,5 +433,35 @@ class ReservationServiceTest {
 
         reservationService.delete(100L, authentication);
         verify(reservationRepository).delete(existing);
+    }
+
+    @Test
+    @DisplayName("Should throw BadCredentialsException when authenticated user no longer exists in database")
+    void testGetAuthenticatedUser_UserNotFoundInDb_ThrowsBadCredentials() {
+        when(authentication.isAuthenticated()).thenReturn(true);
+        when(authentication.getName()).thenReturn("deleted_user");
+        when(userRepository.findByUsername("deleted_user")).thenReturn(Optional.empty());
+
+        Reservation existing = new Reservation();
+        existing.setId(100L);
+        when(reservationRepository.findById(100L)).thenReturn(Optional.of(existing));
+
+        BadCredentialsException ex = assertThrows(
+                BadCredentialsException.class,
+                () -> reservationService.getById(100L, authentication));
+
+        assertEquals("Authenticated user no longer exists", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Should throw BadCredentialsException when authentication is null or unauthenticated")
+    void testGetAuthenticatedUser_Unauthenticated_ThrowsBadCredentials() {
+        Reservation existing = new Reservation();
+        existing.setId(100L);
+        when(reservationRepository.findById(100L)).thenReturn(Optional.of(existing));
+
+        assertThrows(
+                BadCredentialsException.class,
+                () -> reservationService.getById(100L, null));
     }
 }

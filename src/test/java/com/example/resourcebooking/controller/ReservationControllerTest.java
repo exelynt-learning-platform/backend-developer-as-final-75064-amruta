@@ -40,10 +40,12 @@ class ReservationControllerTest {
     private ReservationService reservationService;
 
     @Test
-    @DisplayName("GET /reservations - Unauthenticated returns 403 Forbidden")
+    @DisplayName("GET /reservations - Unauthenticated returns 401 Unauthorized")
     void testGetReservations_Unauthenticated() throws Exception {
         mockMvc.perform(get("/reservations"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value("Authentication required or invalid token"));
     }
 
     @Test
@@ -94,5 +96,15 @@ class ReservationControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.message").value("Resource is already booked for the selected time slot"));
+    }
+
+    @Test
+    @WithMockUser(username = "unauthorized_user", roles = {"USER"})
+    @DisplayName("GET /reservations/10 - Non-owner / unauthorized user returns 403 Forbidden gracefully")
+    void testGetReservation_UnauthorizedUser_Returns403() throws Exception {
+        mockMvc.perform(get("/reservations/10"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.message").value("You do not have permission to access this resource"));
     }
 }
