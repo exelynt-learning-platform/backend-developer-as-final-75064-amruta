@@ -203,54 +203,71 @@ public class ReservationService {
         return toResponse(reservation);
     }
 
-    public ReservationResponse update(
-            Long id,
-            ReservationRequest request) {
+  public ReservationResponse update(
+        Long id,
+        ReservationRequest request,
+        Authentication authentication) {
 
-        validateTimes(
-                request.getStartTime(),
-                request.getEndTime());
+    validateTimes(
+            request.getStartTime(),
+            request.getEndTime());
 
-        Reservation reservation =
-                reservationRepository.findById(id)
-                        .orElseThrow(() ->
-                                new ReservationNotFoundException(
-                                        "Reservation not found with id: "
-                                                + id));
+    Reservation reservation =
+            reservationRepository.findById(id)
+                    .orElseThrow(() ->
+                            new ReservationNotFoundException(
+                                    "Reservation not found with id: "
+                                            + id));
 
-        Resource resource =
-                resourceRepository.findById(request.getResourceId())
-                        .orElseThrow(() ->
-                                new ResourceNotFoundException(
-                                        "Resource not found with id: "
-                                                + request.getResourceId()));
+    // Get currently logged-in user from JWT
+    User user = getAuthenticatedUser(authentication);
 
-        if (!resource.isAvailable()) {
-            throw new BadRequestException(
-                    "Resource is not available");
-        }
+    // USER -> own reservation only
+    // ADMIN -> any reservation
+    checkOwnership(reservation, user);
 
-        reservation.setResource(resource);
-        reservation.setStartTime(request.getStartTime());
-        reservation.setEndTime(request.getEndTime());
-        reservation.setPrice(resource.getPrice());
+    Resource resource =
+            resourceRepository.findById(request.getResourceId())
+                    .orElseThrow(() ->
+                            new ResourceNotFoundException(
+                                    "Resource not found with id: "
+                                            + request.getResourceId()));
 
-        return toResponse(
-                reservationRepository.save(reservation));
+    if (!resource.isAvailable()) {
+        throw new BadRequestException(
+                "Resource is not available");
     }
 
-    public void delete(Long id) {
+    reservation.setResource(resource);
+    reservation.setStartTime(request.getStartTime());
+    reservation.setEndTime(request.getEndTime());
+    reservation.setPrice(resource.getPrice());
 
-        Reservation reservation =
-                reservationRepository.findById(id)
-                        .orElseThrow(() ->
-                                new ReservationNotFoundException(
-                                        "Reservation not found with id: "
-                                                + id));
+    return toResponse(
+            reservationRepository.save(reservation));
+  }
+  
+  public void delete(
+	        Long id,
+	        Authentication authentication) {
 
-        reservationRepository.delete(reservation);
-    }
+	    Reservation reservation =
+	            reservationRepository.findById(id)
+	                    .orElseThrow(() ->
+	                            new ReservationNotFoundException(
+	                                    "Reservation not found with id: "
+	                                            + id));
 
+	    // Get logged-in user from JWT
+	    User user = getAuthenticatedUser(authentication);
+
+	    // USER -> can delete only own reservation
+	    // ADMIN -> can delete any reservation
+	    checkOwnership(reservation, user);
+
+	    reservationRepository.delete(reservation);
+	}
+  
     private User getAuthenticatedUser(
             Authentication authentication) {
 

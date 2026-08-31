@@ -1,6 +1,9 @@
 package com.example.resourcebooking.model;
 
 import javax.persistence.*;
+import javax.validation.constraints.DecimalMin;
+import javax.validation.constraints.NotNull;
+
 import java.math.BigDecimal;
 
 @Entity
@@ -19,6 +22,9 @@ public class Resource {
 
     private boolean available;
 
+    @Column(nullable = false)
+    @NotNull
+    @DecimalMin(value = "0.0", inclusive = true)
     private BigDecimal price;
 
     // Getters

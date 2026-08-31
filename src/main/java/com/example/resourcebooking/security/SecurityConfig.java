@@ -76,10 +76,10 @@ public class SecurityConfig {
                                 "/v3/api-docs/**"
                         ).permitAll()
 
-                        .antMatchers(HttpMethod.GET, "/resources/**")
+                        .antMatchers(HttpMethod.GET, "/api/resources/**")
                         .hasAnyRole("USER", "ADMIN")
 
-                        .antMatchers("/resources/**")
+                        .antMatchers("/api/resources/**")
                         .hasRole("ADMIN")
 
                         .antMatchers(HttpMethod.POST, "/reservations")

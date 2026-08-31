@@ -1,4 +1,4 @@
-package com.example.resourcebooking.controller;
+	package com.example.resourcebooking.controller;
 
 import java.math.BigDecimal;
 
@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.resourcebooking.dto.ReservationRequest;
 import com.example.resourcebooking.dto.ReservationResponse;
+import com.example.resourcebooking.model.Reservation;
 import com.example.resourcebooking.model.ReservationStatus;
 import com.example.resourcebooking.service.ReservationService;
 
@@ -100,19 +101,22 @@ public class ReservationController {
     @PutMapping("/{id}")
     public ResponseEntity<ReservationResponse> update(
             @PathVariable Long id,
-            @Valid @RequestBody ReservationRequest request) {
+            @Valid @RequestBody ReservationRequest request,
+            Authentication authentication) {
 
         return ResponseEntity.ok(
                 reservationService.update(
                         id,
-                        request));
+                        request,
+                        authentication));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(
-            @PathVariable Long id) {
+            @PathVariable Long id,
+            Authentication authentication) {
 
-        reservationService.delete(id);
+        reservationService.delete(id, authentication);
 
         return ResponseEntity.noContent().build();
     }
