@@ -13,6 +13,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * REST controller for managing system resources (e.g. rooms, equipment, vehicles).
+ */
 @RestController
 @RequestMapping("/api/resources")
 public class ResourceController {
@@ -23,12 +26,23 @@ public class ResourceController {
         this.resourceService = resourceService;
     }
 
+    /**
+     * Retrieves all registered resources in the system.
+     *
+     * @return list of resources
+     */
     @GetMapping
     public List<ResourceResponse> getAllResources() {
 
         return resourceService.getAll();
     }
 
+    /**
+     * Creates a new resource. Requires ADMIN role.
+     *
+     * @param request resource creation details
+     * @return created resource
+     */
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResourceResponse> create(
@@ -39,6 +53,12 @@ public class ResourceController {
                 .body(resourceService.create(request));
     }
 
+    /**
+     * Retrieves a resource by its ID.
+     *
+     * @param id resource ID
+     * @return resource details
+     */
     @GetMapping("/{id}")
     public ResponseEntity<ResourceResponse> getResourceById(
             @PathVariable Long id) {
@@ -47,6 +67,13 @@ public class ResourceController {
                 resourceService.getById(id));
     }
 
+    /**
+     * Updates an existing resource. Requires ADMIN role.
+     *
+     * @param id      resource ID
+     * @param request updated resource details
+     * @return updated resource
+     */
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResourceResponse> update(
@@ -57,13 +84,18 @@ public class ResourceController {
                 resourceService.update(id, request));
     }
 
+    /**
+     * Deletes a resource. Requires ADMIN role.
+     *
+     * @param id resource ID
+     * @return no content response
+     */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> delete(
             @PathVariable Long id) {
 
         resourceService.delete(id);
-
         return ResponseEntity.noContent().build();
     }
 }

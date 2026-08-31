@@ -8,6 +8,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import javax.validation.Valid;
+
+/**
+ * REST controller for authentication endpoints (user login and JWT generation).
+ */
 @RestController
 @RequestMapping("/auth")
 public class AuthController {
@@ -18,9 +23,15 @@ public class AuthController {
         this.authService = authService;
     }
 
+    /**
+     * Authenticates user credentials and returns a signed JWT bearer token.
+     *
+     * @param request login credentials
+     * @return authentication response containing the token and user metadata
+     */
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(
-            @Validated @RequestBody LoginRequest request) {
+            @Valid @RequestBody LoginRequest request) {
 
         return ResponseEntity.ok(
                 authService.login(request));

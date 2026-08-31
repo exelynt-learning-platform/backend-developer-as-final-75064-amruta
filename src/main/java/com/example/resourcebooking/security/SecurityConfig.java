@@ -14,103 +14,97 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
+/**
+ * Spring Security configuration defining authentication providers, password encoding,
+ * session management, CORS/CSRF settings, and endpoint authorization rules.
+ */
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
 
-        private final JwtAuthenticationFilter jwtAuthenticationFilter;
-        private final CustomUserDetailsService userDetailsService;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final CustomUserDetailsService userDetailsService;
 
-        public SecurityConfig(
-                        JwtAuthenticationFilter jwtAuthenticationFilter,
-                        CustomUserDetailsService userDetailsService) {
+    public SecurityConfig(
+            JwtAuthenticationFilter jwtAuthenticationFilter,
+            CustomUserDetailsService userDetailsService) {
 
-                this.jwtAuthenticationFilter = jwtAuthenticationFilter;
-                this.userDetailsService = userDetailsService;
-        }
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.userDetailsService = userDetailsService;
+    }
 
-        @Bean
-        public PasswordEncoder passwordEncoder() {
-                return new BCryptPasswordEncoder();
-        }
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
 
-        @Bean
-        public AuthenticationProvider authenticationProvider() {
+    @Bean
+    public AuthenticationProvider authenticationProvider() {
 
-                DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
 
-                provider.setUserDetailsService(userDetailsService);
-                provider.setPasswordEncoder(passwordEncoder());
+        provider.setUserDetailsService(userDetailsService);
+        provider.setPasswordEncoder(passwordEncoder());
 
-                return provider;
-        }
+        return provider;
+    }
 
-        @Bean
-        public AuthenticationManager authenticationManager(
-                        AuthenticationConfiguration configuration)
-                        throws Exception {
+    @Bean
+    public AuthenticationManager authenticationManager(
+            AuthenticationConfiguration configuration)
+            throws Exception {
 
-                return configuration.getAuthenticationManager();
-        }
+        return configuration.getAuthenticationManager();
+    }
 
-        @Bean
-        public SecurityFilterChain securityFilterChain(
-                        HttpSecurity http)
-                        throws Exception {
+    @Bean
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http)
+            throws Exception {
 
-                http
-                                .csrf(csrf -> csrf.disable())
+        http
+                .csrf(csrf -> csrf.disable())
 
-                                .sessionManagement(session -> session.sessionCreationPolicy(
-                                                SessionCreationPolicy.STATELESS))
+                .sessionManagement(session -> session.sessionCreationPolicy(
+                        SessionCreationPolicy.STATELESS))
 
-                                .authorizeHttpRequests(auth -> auth
+                .authorizeHttpRequests(auth -> auth
 
-                                                // Public endpoints
-                                                .antMatchers(
-                                                                "/auth/**",
-                                                                "/swagger-ui/**",
-                                                                "/swagger-ui.html",
-                                                                "/v3/api-docs/**")
-                                                .permitAll()
+                        // Public endpoints
+                        .requestMatchers(
+                                new AntPathRequestMatcher("/auth/**"),
+                                new AntPathRequestMatcher("/swagger-ui/**"),
+                                new AntPathRequestMatcher("/swagger-ui.html"),
+                                new AntPathRequestMatcher("/v3/api-docs/**"))
+                        .permitAll()
 
-                                                // Resource endpoints
-                                                .antMatchers(
-                                                                HttpMethod.GET,
-                                                                "/api/resources/**")
-                                                .hasAnyRole("USER", "ADMIN")
+                        // Resource endpoints: Read access for USER & ADMIN, Write access for ADMIN only
+                        .requestMatchers(
+                                new AntPathRequestMatcher("/api/resources/**", HttpMethod.GET.name()))
+                        .hasAnyRole("USER", "ADMIN")
 
-                                                .antMatchers(
-                                                                "/api/resources/**")
-                                                .hasRole("ADMIN")
+                        .requestMatchers(
+                                new AntPathRequestMatcher("/api/resources/**"))
+                        .hasRole("ADMIN")
 
-                                                // Reservation endpoints
-                                                .antMatchers(
-                                                                HttpMethod.POST,
-                                                                "/reservations")
-                                                .hasAnyRole("USER", "ADMIN")
+                        // Reservation endpoints: USER and ADMIN can access; Service layer enforces user ownership
+                        .requestMatchers(
+                                new AntPathRequestMatcher("/reservations/**"))
+                        .hasAnyRole("USER", "ADMIN")
 
-                                                .antMatchers(
-                                                                HttpMethod.GET,
-                                                                "/reservations/**")
-                                                .hasAnyRole("USER", "ADMIN")
+                        // Everything else requires authentication
+                        .anyRequest()
+                        .authenticated())
 
-                                                .antMatchers(
-                                                                "/reservations/**")
-                                                .hasRole("ADMIN")
+                .authenticationProvider(
+                        authenticationProvider())
 
-                                                // Everything else requires authentication
-                                                .anyRequest()
-                                                .authenticated())
+                .addFilterBefore(
+                        jwtAuthenticationFilter,
+                        UsernamePasswordAuthenticationFilter.class);
 
-                                .authenticationProvider(
-                                                authenticationProvider())
-
-                                .addFilterBefore(
-                                                jwtAuthenticationFilter,
-                                                UsernamePasswordAuthenticationFilter.class);
-
-                return http.build();
-        }
+        return http.build();
+    }
 }
