@@ -27,7 +27,8 @@ import java.util.Map;
 
 /**
  * Spring Security configuration defining authentication providers, password encoding,
- * session management, CORS/CSRF settings, endpoint authorization rules, and structured JSON error entry points.
+ * session management, CORS/CSRF settings, explicit HTTP-method endpoint authorization rules,
+ * and structured JSON error entry points.
  */
 @Configuration
 @EnableMethodSecurity
@@ -120,26 +121,33 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth -> auth
 
-                        // Public endpoints
+                        // Public endpoints: Auth and API Documentation
                         .requestMatchers(
                                 new AntPathRequestMatcher("/auth/**"),
-                                new AntPathRequestMatcher("/swagger-ui/**"),
-                                new AntPathRequestMatcher("/swagger-ui.html"),
-                                new AntPathRequestMatcher("/v3/api-docs/**"))
+                                new AntPathRequestMatcher("/swagger-ui/**", HttpMethod.GET.name()),
+                                new AntPathRequestMatcher("/swagger-ui.html", HttpMethod.GET.name()),
+                                new AntPathRequestMatcher("/v3/api-docs/**", HttpMethod.GET.name()))
                         .permitAll()
 
-                        // Resource endpoints: Read access for USER & ADMIN, Write access for ADMIN only
+                        // Resource endpoints: Explicit HTTP Method RBAC
+                        // Read access (GET): USER and ADMIN
                         .requestMatchers(
                                 new AntPathRequestMatcher("/api/resources/**", HttpMethod.GET.name()))
                         .hasAnyRole("USER", "ADMIN")
 
+                        // Write access (POST, PUT, DELETE): ADMIN only
                         .requestMatchers(
-                                new AntPathRequestMatcher("/api/resources/**"))
+                                new AntPathRequestMatcher("/api/resources/**", HttpMethod.POST.name()),
+                                new AntPathRequestMatcher("/api/resources/**", HttpMethod.PUT.name()),
+                                new AntPathRequestMatcher("/api/resources/**", HttpMethod.DELETE.name()))
                         .hasRole("ADMIN")
 
-                        // Reservation endpoints: USER and ADMIN can access; Service layer enforces user ownership
+                        // Reservation endpoints: USER and ADMIN can access (Service layer & @PreAuthorize enforce ownership)
                         .requestMatchers(
-                                new AntPathRequestMatcher("/reservations/**"))
+                                new AntPathRequestMatcher("/reservations/**", HttpMethod.GET.name()),
+                                new AntPathRequestMatcher("/reservations/**", HttpMethod.POST.name()),
+                                new AntPathRequestMatcher("/reservations/**", HttpMethod.PUT.name()),
+                                new AntPathRequestMatcher("/reservations/**", HttpMethod.DELETE.name()))
                         .hasAnyRole("USER", "ADMIN")
 
                         // Everything else requires authentication

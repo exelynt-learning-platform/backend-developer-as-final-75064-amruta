@@ -7,9 +7,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * Main entrypoint for the Resource Booking System Spring Boot application.
  */
 @SpringBootApplication
-public class ResourceBookingSystemApplication {
+public class ResourceBookingApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(ResourceBookingSystemApplication.class, args);
+        SpringApplication.run(ResourceBookingApplication.class, args);
     }
 }

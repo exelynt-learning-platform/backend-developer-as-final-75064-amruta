@@ -2,6 +2,8 @@ package com.example.resourcebooking.controller;
 
 import com.example.resourcebooking.dto.LoginRequest;
 import com.example.resourcebooking.dto.LoginResponse;
+import com.example.resourcebooking.dto.RegisterRequest;
+import com.example.resourcebooking.model.Role;
 import com.example.resourcebooking.service.AuthService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -76,6 +78,36 @@ class AuthControllerTest {
         LoginRequest request = new LoginRequest(); // missing username and password
 
         mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("Validation failed"));
+    }
+
+    @Test
+    @DisplayName("POST /auth/register - Success returns 201 Created and token")
+    void testRegister_Success() throws Exception {
+        RegisterRequest request = new RegisterRequest("newuser", "newuser@example.com", "SecurePass123!", Role.USER);
+
+        LoginResponse response = new LoginResponse("mock-jwt-token", "newuser", "USER");
+        when(authService.register(any(RegisterRequest.class))).thenReturn(response);
+
+        mockMvc.perform(post("/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.token").value("mock-jwt-token"))
+                .andExpect(jsonPath("$.username").value("newuser"))
+                .andExpect(jsonPath("$.role").value("USER"));
+    }
+
+    @Test
+    @DisplayName("POST /auth/register - Invalid email returns 400 Bad Request")
+    void testRegister_InvalidEmail() throws Exception {
+        RegisterRequest request = new RegisterRequest("newuser", "invalid-email", "SecurePass123!", Role.USER);
+
+        mockMvc.perform(post("/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
