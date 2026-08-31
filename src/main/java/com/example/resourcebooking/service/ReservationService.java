@@ -2,6 +2,7 @@ package com.example.resourcebooking.service;
 
 import com.example.resourcebooking.dto.ReservationRequest;
 import com.example.resourcebooking.dto.ReservationResponse;
+import com.example.resourcebooking.dto.ReservationSearchCriteria;
 import com.example.resourcebooking.exception.BadRequestException;
 import com.example.resourcebooking.exception.ReservationNotFoundException;
 import com.example.resourcebooking.exception.ResourceNotFoundException;
@@ -72,7 +73,7 @@ public class ReservationService {
 
     /**
      * Creates a new reservation for an authenticated user after validating times, resource availability,
-     * and ensuring there are no overlapping bookings for the selected time window.
+     * role-based status assignment, and ensuring there are no overlapping bookings for the selected time window.
      *
      * @param request        the reservation request payload containing resource ID and time interval
      * @param authentication the Spring Security authentication object of the current user
@@ -98,29 +99,62 @@ public class ReservationService {
         reservation.setStartTime(request.getStartTime());
         reservation.setEndTime(request.getEndTime());
         reservation.setPrice(resource.getPrice());
-        reservation.setStatus(ReservationStatus.PENDING);
+
+        // Role-based status enforcement:
+        // Regular users always create PENDING reservations.
+        // Admins can specify status or default to CONFIRMED.
+        if (user.getRole() == Role.ADMIN) {
+            reservation.setStatus(request.getStatus() != null ? request.getStatus() : ReservationStatus.CONFIRMED);
+        } else {
+            reservation.setStatus(ReservationStatus.PENDING);
+        }
 
         Reservation savedReservation = reservationRepository.save(reservation);
-        log.info("Created reservation id={} for user='{}' on resource='{}' from {} to {}",
-                savedReservation.getId(), user.getUsername(), resource.getName(),
-                request.getStartTime(), request.getEndTime());
+        log.info("Created reservation id={} for user='{}' [role={}] on resource='{}' with status={}",
+                savedReservation.getId(), user.getUsername(), user.getRole(), resource.getName(),
+                savedReservation.getStatus());
 
         return toResponse(savedReservation);
     }
 
     /**
-     * Retrieves a paginated list of reservations filtered by status, price range, and user permissions.
+     * Retrieves a paginated list of reservations filtered by status, price range, and user permissions
+     * encapsulated in {@link ReservationSearchCriteria}.
      * Non-admin users are restricted to viewing only their own reservations.
      *
      * @param authentication current user authentication
-     * @param status         optional status filter
-     * @param minPrice       optional minimum price filter
-     * @param maxPrice       optional maximum price filter
-     * @param page           zero-based page index
-     * @param size           page size
-     * @param sortBy         sort property name
-     * @param direction      sort direction ("asc" or "desc")
+     * @param criteria       search criteria containing status, price range, pagination, and sorting
      * @return page of matching reservation response DTOs
+     */
+    public Page<ReservationResponse> getReservations(
+            Authentication authentication,
+            ReservationSearchCriteria criteria) {
+
+        if (criteria == null) {
+            criteria = new ReservationSearchCriteria();
+        }
+
+        validatePagination(criteria.getPage(), criteria.getSize());
+        validatePriceRange(criteria.getMinPrice(), criteria.getMaxPrice());
+
+        User user = getAuthenticatedUser(authentication);
+        Pageable pageable = createPageable(
+                criteria.getPage(),
+                criteria.getSize(),
+                criteria.getSortBy(),
+                criteria.getDirection());
+
+        Specification<Reservation> specification = createReservationSpecification(
+                user,
+                criteria.getStatus(),
+                criteria.getMinPrice(),
+                criteria.getMaxPrice());
+
+        return findReservations(specification, pageable);
+    }
+
+    /**
+     * Legacy signature overloaded for backwards compatibility if needed.
      */
     public Page<ReservationResponse> getReservations(
             Authentication authentication,
@@ -132,19 +166,9 @@ public class ReservationService {
             String sortBy,
             String direction) {
 
-        validatePagination(page, size);
-        validatePriceRange(minPrice, maxPrice);
-
-        User user = getAuthenticatedUser(authentication);
-        Pageable pageable = createPageable(page, size, sortBy, direction);
-
-        Specification<Reservation> specification = createReservationSpecification(
-                user,
-                status,
-                minPrice,
-                maxPrice);
-
-        return findReservations(specification, pageable);
+        ReservationSearchCriteria criteria = new ReservationSearchCriteria(
+                status, minPrice, maxPrice, page, size, sortBy, direction);
+        return getReservations(authentication, criteria);
     }
 
     /**
@@ -169,8 +193,8 @@ public class ReservationService {
     }
 
     /**
-     * Updates an existing reservation's resource and time window after validating availability,
-     * time validity, ownership, and absence of overlapping bookings.
+     * Updates an existing reservation's resource, time window, and status (for admins)
+     * after validating availability, time validity, ownership, and absence of overlapping bookings.
      *
      * @param id             the reservation ID to update
      * @param request        the updated reservation details
@@ -198,6 +222,11 @@ public class ReservationService {
         reservation.setStartTime(request.getStartTime());
         reservation.setEndTime(request.getEndTime());
         reservation.setPrice(resource.getPrice());
+
+        // Admins can update the reservation status if provided
+        if (user.getRole() == Role.ADMIN && request.getStatus() != null) {
+            reservation.setStatus(request.getStatus());
+        }
 
         Reservation updatedReservation = reservationRepository.save(reservation);
         log.info("Updated reservation id={} by user='{}'", id, user.getUsername());
@@ -444,13 +473,13 @@ public class ReservationService {
 
     private Sort createSort(String sortBy, String direction) {
 
+        Sort.Direction sortDirection = getSortDirection(direction);
+
         if (sortBy == null || sortBy.isBlank()) {
-            return Sort.by(Sort.Direction.DESC, "createdAt");
+            return Sort.by(sortDirection, "createdAt");
         }
 
         validateSortField(sortBy);
-
-        Sort.Direction sortDirection = getSortDirection(direction);
 
         return Sort.by(sortDirection, sortBy);
     }
@@ -464,9 +493,15 @@ public class ReservationService {
 
     private Sort.Direction getSortDirection(String direction) {
 
-        return "desc".equalsIgnoreCase(direction)
-                ? Sort.Direction.DESC
-                : Sort.Direction.ASC;
+        if (direction == null || direction.isBlank() || "desc".equalsIgnoreCase(direction)) {
+            return Sort.Direction.DESC;
+        }
+
+        if ("asc".equalsIgnoreCase(direction)) {
+            return Sort.Direction.ASC;
+        }
+
+        throw new BadRequestException("Invalid sort direction '" + direction + "'. Allowed values: 'asc', 'desc'");
     }
 
     private ReservationResponse toResponse(Reservation reservation) {

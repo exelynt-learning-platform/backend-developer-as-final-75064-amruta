@@ -1,11 +1,21 @@
 package com.example.resourcebooking.model;
 
-import javax.persistence.*;
+import javax.persistence.Column;
+import javax.persistence.Entity;
+import javax.persistence.GeneratedValue;
+import javax.persistence.GenerationType;
+import javax.persistence.Id;
+import javax.persistence.Table;
 import javax.validation.constraints.DecimalMin;
+import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
+import javax.validation.constraints.Size;
 
 import java.math.BigDecimal;
 
+/**
+ * Entity representing a bookable resource (e.g., conference rooms, equipment, vehicles).
+ */
 @Entity
 @Table(name = "resources")
 public class Resource {
@@ -14,18 +24,38 @@ public class Resource {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @NotBlank(message = "Name is required")
+    @Size(max = 100, message = "Name must not exceed 100 characters")
+    @Column(nullable = false, length = 100)
     private String name;
 
+    @Size(max = 500, message = "Description must not exceed 500 characters")
+    @Column(length = 500)
     private String description;
 
+    @NotBlank(message = "Type is required")
+    @Size(max = 50, message = "Type must not exceed 50 characters")
+    @Column(nullable = false, length = 50)
     private String type;
 
-    private boolean available;
-
     @Column(nullable = false)
-    @NotNull
-    @DecimalMin(value = "0.0", inclusive = true)
+    private boolean available = true;
+
+    @NotNull(message = "Price is required")
+    @DecimalMin(value = "0.0", inclusive = true, message = "Price cannot be negative")
+    @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal price;
+
+    public Resource() {
+    }
+
+    public Resource(String name, String description, String type, boolean available, BigDecimal price) {
+        this.name = name;
+        this.description = description;
+        this.type = type;
+        this.available = available;
+        this.price = price;
+    }
 
     // Getters
 

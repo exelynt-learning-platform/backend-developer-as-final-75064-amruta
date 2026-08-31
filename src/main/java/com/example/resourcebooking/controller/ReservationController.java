@@ -1,24 +1,22 @@
 package com.example.resourcebooking.controller;
 
-import java.math.BigDecimal;
-
 import org.springframework.security.core.Authentication;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.resourcebooking.dto.ReservationRequest;
 import com.example.resourcebooking.dto.ReservationResponse;
-import com.example.resourcebooking.model.ReservationStatus;
+import com.example.resourcebooking.dto.ReservationSearchCriteria;
 import com.example.resourcebooking.service.ReservationService;
 
 import javax.validation.Valid;
@@ -54,39 +52,19 @@ public class ReservationController {
     }
 
     /**
-     * Retrieves a paginated and filtered list of reservations.
+     * Retrieves a paginated and filtered list of reservations using criteria object.
      *
      * @param authentication current user authentication
-     * @param status         optional reservation status filter
-     * @param minPrice       optional minimum price filter
-     * @param maxPrice       optional maximum price filter
-     * @param page           page index (default: 0)
-     * @param size           page size (default: 10)
-     * @param sortBy         field to sort by
-     * @param direction      sort direction ("asc" or "desc")
+     * @param criteria       search criteria containing status, price bounds, pagination, and sorting
      * @return page of reservations
      */
     @GetMapping
     public ResponseEntity<Page<ReservationResponse>> getReservations(
             Authentication authentication,
-            @RequestParam(required = false) ReservationStatus status,
-            @RequestParam(required = false) BigDecimal minPrice,
-            @RequestParam(required = false) BigDecimal maxPrice,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(required = false) String sortBy,
-            @RequestParam(defaultValue = "desc") String direction) {
+            @ModelAttribute ReservationSearchCriteria criteria) {
 
         return ResponseEntity.ok(
-                reservationService.getReservations(
-                        authentication,
-                        status,
-                        minPrice,
-                        maxPrice,
-                        page,
-                        size,
-                        sortBy,
-                        direction));
+                reservationService.getReservations(authentication, criteria));
     }
 
     /**

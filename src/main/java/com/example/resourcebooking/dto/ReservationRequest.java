@@ -1,5 +1,7 @@
 package com.example.resourcebooking.dto;
 
+import com.example.resourcebooking.model.ReservationStatus;
+
 import javax.validation.constraints.NotNull;
 
 import java.time.LocalDateTime;
@@ -15,6 +17,8 @@ public class ReservationRequest {
     @NotNull(message = "End time is required")
     private LocalDateTime endTime;
 
+    private ReservationStatus status;
+
     public Long getResourceId() {
         return resourceId;
     }
@@ -27,6 +31,10 @@ public class ReservationRequest {
         return endTime;
     }
 
+    public ReservationStatus getStatus() {
+        return status;
+    }
+
     public void setResourceId(Long resourceId) {
         this.resourceId = resourceId;
     }
@@ -37,5 +45,9 @@ public class ReservationRequest {
 
     public void setEndTime(LocalDateTime endTime) {
         this.endTime = endTime;
+    }
+
+    public void setStatus(ReservationStatus status) {
+        this.status = status;
     }
 }

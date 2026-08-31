@@ -2,6 +2,7 @@ package com.example.resourcebooking.service;
 
 import com.example.resourcebooking.dto.ReservationRequest;
 import com.example.resourcebooking.dto.ReservationResponse;
+import com.example.resourcebooking.dto.ReservationSearchCriteria;
 import com.example.resourcebooking.exception.BadRequestException;
 import com.example.resourcebooking.exception.ReservationNotFoundException;
 import com.example.resourcebooking.model.Reservation;
@@ -20,11 +21,16 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -79,8 +85,8 @@ class ReservationServiceTest {
     }
 
     @Test
-    @DisplayName("Should successfully create reservation when no overlap exists")
-    void testCreateReservation_Success() {
+    @DisplayName("USER creating reservation strictly forces PENDING status")
+    void testCreateReservation_UserForcesPending() {
         when(authentication.isAuthenticated()).thenReturn(true);
         when(authentication.getName()).thenReturn("john_doe");
         when(userRepository.findByUsername("john_doe")).thenReturn(Optional.of(testUser));
@@ -98,20 +104,60 @@ class ReservationServiceTest {
         savedReservation.setStatus(ReservationStatus.PENDING);
         savedReservation.setCreatedAt(LocalDateTime.now());
 
-        when(reservationRepository.save(any(Reservation.class))).thenReturn(savedReservation);
+        when(reservationRepository.save(any(Reservation.class))).thenAnswer(invocation -> {
+            Reservation r = invocation.getArgument(0);
+            assertEquals(ReservationStatus.PENDING, r.getStatus());
+            return savedReservation;
+        });
 
         ReservationRequest request = new ReservationRequest();
         request.setResourceId(10L);
         request.setStartTime(start);
         request.setEndTime(end);
+        request.setStatus(ReservationStatus.CONFIRMED); // User attempts to request CONFIRMED
 
         ReservationResponse response = reservationService.create(request, authentication);
 
         assertNotNull(response);
-        assertEquals(100L, response.getId());
-        assertEquals("Conference Room A", response.getResourceName());
         assertEquals(ReservationStatus.PENDING, response.getStatus());
-        verify(reservationRepository).save(any(Reservation.class));
+    }
+
+    @Test
+    @DisplayName("ADMIN creating reservation can specify CONFIRMED status")
+    void testCreateReservation_AdminCanSpecifyStatus() {
+        when(authentication.isAuthenticated()).thenReturn(true);
+        when(authentication.getName()).thenReturn("admin");
+        when(userRepository.findByUsername("admin")).thenReturn(Optional.of(adminUser));
+        when(resourceRepository.findById(10L)).thenReturn(Optional.of(testResource));
+        when(reservationRepository.existsOverlappingReservation(
+                eq(10L), eq(start), eq(end), eq(ReservationStatus.CANCELLED))).thenReturn(false);
+
+        Reservation savedReservation = new Reservation();
+        savedReservation.setId(101L);
+        savedReservation.setUser(adminUser);
+        savedReservation.setResource(testResource);
+        savedReservation.setStartTime(start);
+        savedReservation.setEndTime(end);
+        savedReservation.setPrice(testResource.getPrice());
+        savedReservation.setStatus(ReservationStatus.CONFIRMED);
+        savedReservation.setCreatedAt(LocalDateTime.now());
+
+        when(reservationRepository.save(any(Reservation.class))).thenAnswer(invocation -> {
+            Reservation r = invocation.getArgument(0);
+            assertEquals(ReservationStatus.CONFIRMED, r.getStatus());
+            return savedReservation;
+        });
+
+        ReservationRequest request = new ReservationRequest();
+        request.setResourceId(10L);
+        request.setStartTime(start);
+        request.setEndTime(end);
+        request.setStatus(ReservationStatus.CONFIRMED);
+
+        ReservationResponse response = reservationService.create(request, authentication);
+
+        assertNotNull(response);
+        assertEquals(ReservationStatus.CONFIRMED, response.getStatus());
     }
 
     @Test
@@ -173,6 +219,58 @@ class ReservationServiceTest {
 
         assertEquals("Resource is not available", ex.getMessage());
         verify(reservationRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Should throw BadRequestException when invalid sort direction is supplied")
+    void testGetReservations_ThrowsWhenInvalidSortDirection() {
+        when(authentication.isAuthenticated()).thenReturn(true);
+        when(authentication.getName()).thenReturn("john_doe");
+        when(userRepository.findByUsername("john_doe")).thenReturn(Optional.of(testUser));
+
+        ReservationSearchCriteria criteria = new ReservationSearchCriteria();
+        criteria.setDirection("invalid_direction");
+
+        BadRequestException ex = assertThrows(
+                BadRequestException.class,
+                () -> reservationService.getReservations(authentication, criteria));
+
+        assertTrue(ex.getMessage().contains("Invalid sort direction"));
+    }
+
+    @Test
+    @DisplayName("Should retrieve reservations with ReservationSearchCriteria")
+    void testGetReservations_SuccessWithCriteria() {
+        when(authentication.isAuthenticated()).thenReturn(true);
+        when(authentication.getName()).thenReturn("john_doe");
+        when(userRepository.findByUsername("john_doe")).thenReturn(Optional.of(testUser));
+
+        Reservation res = new Reservation();
+        res.setId(100L);
+        res.setUser(testUser);
+        res.setResource(testResource);
+        res.setStartTime(start);
+        res.setEndTime(end);
+        res.setPrice(testResource.getPrice());
+        res.setStatus(ReservationStatus.PENDING);
+        res.setCreatedAt(LocalDateTime.now());
+
+        Page<Reservation> page = new PageImpl<>(List.of(res));
+        when(reservationRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(page);
+
+        ReservationSearchCriteria criteria = new ReservationSearchCriteria();
+        criteria.setStatus(ReservationStatus.PENDING);
+        criteria.setMinPrice(new BigDecimal("50.00"));
+        criteria.setMaxPrice(new BigDecimal("200.00"));
+        criteria.setPage(0);
+        criteria.setSize(10);
+        criteria.setSortBy("price");
+        criteria.setDirection("asc");
+
+        Page<ReservationResponse> result = reservationService.getReservations(authentication, criteria);
+        assertNotNull(result);
+        assertEquals(1, result.getContent().size());
+        assertEquals(100L, result.getContent().get(0).getId());
     }
 
     @Test
