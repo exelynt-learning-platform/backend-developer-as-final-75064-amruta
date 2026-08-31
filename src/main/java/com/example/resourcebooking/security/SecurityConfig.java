@@ -19,107 +19,98 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    private final JwtAuthenticationFilter jwtAuthenticationFilter;
-    private final CustomUserDetailsService userDetailsService;
+        private final JwtAuthenticationFilter jwtAuthenticationFilter;
+        private final CustomUserDetailsService userDetailsService;
 
-    public SecurityConfig(
-            JwtAuthenticationFilter jwtAuthenticationFilter,
-            CustomUserDetailsService userDetailsService) {
+        public SecurityConfig(
+                        JwtAuthenticationFilter jwtAuthenticationFilter,
+                        CustomUserDetailsService userDetailsService) {
 
-        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
-        this.userDetailsService = userDetailsService;
-    }
+                this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+                this.userDetailsService = userDetailsService;
+        }
 
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
+        @Bean
+        public PasswordEncoder passwordEncoder() {
+                return new BCryptPasswordEncoder();
+        }
 
-    @Bean
-    public AuthenticationProvider authenticationProvider() {
+        @Bean
+        public AuthenticationProvider authenticationProvider() {
 
-        DaoAuthenticationProvider provider =
-                new DaoAuthenticationProvider();
+                DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
 
-        provider.setUserDetailsService(userDetailsService);
-        provider.setPasswordEncoder(passwordEncoder());
+                provider.setUserDetailsService(userDetailsService);
+                provider.setPasswordEncoder(passwordEncoder());
 
-        return provider;
-    }
+                return provider;
+        }
 
-    @Bean
-    public AuthenticationManager authenticationManager(
-            AuthenticationConfiguration configuration)
-            throws Exception {
+        @Bean
+        public AuthenticationManager authenticationManager(
+                        AuthenticationConfiguration configuration)
+                        throws Exception {
 
-        return configuration.getAuthenticationManager();
-    }
+                return configuration.getAuthenticationManager();
+        }
 
-    @Bean
-    public SecurityFilterChain securityFilterChain(
-            HttpSecurity http)
-            throws Exception {
+        @Bean
+        public SecurityFilterChain securityFilterChain(
+                        HttpSecurity http)
+                        throws Exception {
 
-        http
-                .csrf()
-                .disable()
+                http
+                                .csrf(csrf -> csrf.disable())
 
-                .sessionManagement()
-                .sessionCreationPolicy(
-                        SessionCreationPolicy.STATELESS)
+                                .sessionManagement(session -> session.sessionCreationPolicy(
+                                                SessionCreationPolicy.STATELESS))
 
-                .and()
+                                .authorizeHttpRequests(auth -> auth
 
-                .authorizeRequests()
+                                                // Public endpoints
+                                                .antMatchers(
+                                                                "/auth/**",
+                                                                "/swagger-ui/**",
+                                                                "/swagger-ui.html",
+                                                                "/v3/api-docs/**")
+                                                .permitAll()
 
-                .antMatchers(
-                        "/auth/**",
-                        "/swagger-ui/**",
-                        "/swagger-ui.html",
-                        "/v3/api-docs/**"
-                )
-                .permitAll()
+                                                // Resource endpoints
+                                                .antMatchers(
+                                                                HttpMethod.GET,
+                                                                "/api/resources/**")
+                                                .hasAnyRole("USER", "ADMIN")
 
-                .antMatchers(
-                        HttpMethod.GET,
-                        "/resources/**"
-                )
-                .hasAnyRole("USER", "ADMIN")
+                                                .antMatchers(
+                                                                "/api/resources/**")
+                                                .hasRole("ADMIN")
 
-                .antMatchers(
-                        "/resources/**"
-                )
-                .hasRole("ADMIN")
+                                                // Reservation endpoints
+                                                .antMatchers(
+                                                                HttpMethod.POST,
+                                                                "/reservations")
+                                                .hasAnyRole("USER", "ADMIN")
 
-                .antMatchers(
-                        HttpMethod.POST,
-                        "/reservations"
-                )
-                .hasAnyRole("USER", "ADMIN")
+                                                .antMatchers(
+                                                                HttpMethod.GET,
+                                                                "/reservations/**")
+                                                .hasAnyRole("USER", "ADMIN")
 
-                .antMatchers(
-                        HttpMethod.GET,
-                        "/reservations/**"
-                )
-                .hasAnyRole("USER", "ADMIN")
+                                                .antMatchers(
+                                                                "/reservations/**")
+                                                .hasRole("ADMIN")
 
-                .antMatchers(
-                        "/reservations/**"
-                )
-                .hasRole("ADMIN")
+                                                // Everything else requires authentication
+                                                .anyRequest()
+                                                .authenticated())
 
-                .anyRequest()
-                .authenticated()
+                                .authenticationProvider(
+                                                authenticationProvider())
 
-                .and()
+                                .addFilterBefore(
+                                                jwtAuthenticationFilter,
+                                                UsernamePasswordAuthenticationFilter.class);
 
-                .authenticationProvider(
-                        authenticationProvider())
-
-                .addFilterBefore(
-                        jwtAuthenticationFilter,
-                        UsernamePasswordAuthenticationFilter.class);
-
-        return http.build();
-    }
+                return http.build();
+        }
 }
