@@ -1,6 +1,6 @@
 # Resource Booking System
 
-A secure, production-ready RESTful Resource Booking System backend developed with **Spring Boot 2.7+ / 3+**, **Java 17+**, **Spring Security**, **JWT Authentication**, **Role-Based Access Control (RBAC)**, and **PostgreSQL**.
+A secure, production-ready RESTful Resource Booking System backend developed with **Spring Boot 2.7.5** (using standard `javax.*` packages), **Java 17+**, **Spring Security**, **JWT Authentication**, **Role-Based Access Control (RBAC)**, and **PostgreSQL**.
 
 ---
 
@@ -18,7 +18,7 @@ A secure, production-ready RESTful Resource Booking System backend developed wit
   - Dynamic sorting by field (`price`, `startTime`, `endTime`, `createdAt`, `status`) and direction (`asc`, `desc`).
 - **Data Integrity & Production Security**:
   - Decimal precision for monetary prices (`BigDecimal`).
-  - Production-ready safe schema validation (`ddl-auto=validate`).
+  - Production-ready safe schema validation (`ddl-auto=validate` with accompanying `schema.sql`).
   - Comprehensive global exception handling (`GlobalExceptionHandler`) and structured error responses.
   - SLF4J structured logging.
 - **Interactive Documentation**: Swagger / OpenAPI 3.0 UI with Bearer JWT authorization support.
@@ -38,19 +38,20 @@ Upon startup, the system seeds initial users (if not present) and default resour
 
 ## ⚙️ Configuration & Environment Variables
 
-The application can be configured via environment variables or default local fallbacks:
+The application can be configured via environment variables:
 
 | Variable | Description | Default / Development Fallback |
 |---|---|---|
 | `DB_URL` | PostgreSQL JDBC URL | `jdbc:postgresql://localhost:5432/resource_booking_db` |
 | `DB_USERNAME` | PostgreSQL username | `postgres` |
 | `DB_PASSWORD` | PostgreSQL password | `postgres` |
-| `JWT_SECRET` | 256-bit Base64-encoded secret key | `dGhpcy1pcy1hLXNhbXBsZS1qd3Qtc2VjcmV0LWtleS1mb3ItZGV2ZWxvcG1lbnQtb25seQ==` |
+| `JWT_SECRET` | 256-bit Base64-encoded secret key | Required via environment variable |
 | `SEED_ADMIN_PASSWORD`| Initial seeded `admin` user password | `admin123` |
 | `SEED_USER_PASSWORD` | Initial seeded `user` password | `user123` |
-| `JPA_DDL_AUTO` | Hibernate DDL mode (`validate`, `update`, `create-drop`) | `validate` |
+| `JPA_DDL_AUTO` | Hibernate DDL mode (`validate`, `update`, `create-drop`) | `update` (dev) / `validate` (prod) |
+| `JPA_SHOW_SQL` | Hibernate SQL logging (`true`, `false`) | `false` |
 
-> **Security Note**: In production, always supply a strong, unique 256-bit Base64-encoded secret via `JWT_SECRET` and maintain `JPA_DDL_AUTO=validate`.
+> **Security Note**: In production, always supply a strong, unique 256-bit Base64-encoded secret via `JWT_SECRET`, set custom `SEED_ADMIN_PASSWORD` / `SEED_USER_PASSWORD`, and maintain `JPA_DDL_AUTO=validate`.
 
 ---
 

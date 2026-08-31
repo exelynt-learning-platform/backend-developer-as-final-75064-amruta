@@ -7,9 +7,12 @@ import java.math.BigDecimal;
 
 /**
  * Data Transfer Object encapsulating search, filter, and pagination parameters for reservations.
- * Validates pagination boundaries and sort directions early upon construction and mutation.
+ * Validates pagination boundaries, price ranges, and sort directions early upon construction and mutation.
  */
 public class ReservationSearchCriteria {
+
+    private static final int MIN_PAGE_SIZE = 1;
+    private static final int MAX_PAGE_SIZE = 100;
 
     private ReservationStatus status;
     private BigDecimal minPrice;
@@ -31,10 +34,9 @@ public class ReservationSearchCriteria {
             String sortBy,
             String direction) {
         this.status = status;
-        this.minPrice = minPrice;
-        this.maxPrice = maxPrice;
-        this.page = page;
-        this.size = size;
+        setPage(page);
+        setSize(size);
+        setPriceRange(minPrice, maxPrice);
         this.sortBy = sortBy;
         setDirection(direction);
     }
@@ -52,7 +54,7 @@ public class ReservationSearchCriteria {
     }
 
     public void setMinPrice(BigDecimal minPrice) {
-        this.minPrice = minPrice;
+        setPriceRange(minPrice, this.maxPrice);
     }
 
     public BigDecimal getMaxPrice() {
@@ -60,6 +62,20 @@ public class ReservationSearchCriteria {
     }
 
     public void setMaxPrice(BigDecimal maxPrice) {
+        setPriceRange(this.minPrice, maxPrice);
+    }
+
+    public void setPriceRange(BigDecimal minPrice, BigDecimal maxPrice) {
+        if (minPrice != null && minPrice.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BadRequestException("Minimum price cannot be negative");
+        }
+        if (maxPrice != null && maxPrice.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BadRequestException("Maximum price cannot be negative");
+        }
+        if (minPrice != null && maxPrice != null && minPrice.compareTo(maxPrice) > 0) {
+            throw new BadRequestException("Minimum price cannot be greater than maximum price");
+        }
+        this.minPrice = minPrice;
         this.maxPrice = maxPrice;
     }
 
@@ -68,6 +84,9 @@ public class ReservationSearchCriteria {
     }
 
     public void setPage(int page) {
+        if (page < 0) {
+            throw new BadRequestException("Page cannot be negative");
+        }
         this.page = page;
     }
 
@@ -76,6 +95,10 @@ public class ReservationSearchCriteria {
     }
 
     public void setSize(int size) {
+        if (size < MIN_PAGE_SIZE || size > MAX_PAGE_SIZE) {
+            throw new BadRequestException(
+                    "Size must be between " + MIN_PAGE_SIZE + " and " + MAX_PAGE_SIZE);
+        }
         this.size = size;
     }
 

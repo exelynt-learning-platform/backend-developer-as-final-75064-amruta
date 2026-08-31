@@ -96,15 +96,7 @@ public class ReservationService {
         reservation.setStartTime(request.getStartTime());
         reservation.setEndTime(request.getEndTime());
         reservation.setPrice(resource.getPrice());
-
-        // Role-based status enforcement:
-        // Regular users always create PENDING reservations.
-        // Admins can specify status or default to CONFIRMED.
-        if (user.getRole() == Role.ADMIN) {
-            reservation.setStatus(request.getStatus() != null ? request.getStatus() : ReservationStatus.CONFIRMED);
-        } else {
-            reservation.setStatus(ReservationStatus.PENDING);
-        }
+        reservation.setStatus(determineReservationStatus(user, request.getStatus(), true));
 
         Reservation savedReservation = reservationRepository.save(reservation);
         log.info("Created reservation id={} for user='{}' [role={}] on resource='{}' with status={}",
@@ -140,11 +132,11 @@ public class ReservationService {
                 criteria.getSortBy(),
                 criteria.getDirection());
 
-        Specification<Reservation> specification = Specification
-                .where(user.getRole() == Role.USER ? ReservationSpecification.hasUser(user.getId()) : null)
-                .and(ReservationSpecification.hasStatus(criteria.getStatus()))
-                .and(ReservationSpecification.priceGreaterThanOrEqualTo(criteria.getMinPrice()))
-                .and(ReservationSpecification.priceLessThanOrEqualTo(criteria.getMaxPrice()));
+        Specification<Reservation> specification = ReservationSpecification.buildSpecification(
+                user,
+                criteria.getStatus(),
+                criteria.getMinPrice(),
+                criteria.getMaxPrice());
 
         return findReservations(specification, pageable);
     }
@@ -201,15 +193,9 @@ public class ReservationService {
         reservation.setEndTime(request.getEndTime());
         reservation.setPrice(resource.getPrice());
 
-        // Status update logic:
-        // If updated by ADMIN, apply requested status if provided.
-        // If updated by regular USER, reset status to PENDING so changes require re-approval.
-        if (user.getRole() == Role.ADMIN) {
-            if (request.getStatus() != null) {
-                reservation.setStatus(request.getStatus());
-            }
-        } else {
-            reservation.setStatus(ReservationStatus.PENDING);
+        ReservationStatus updatedStatus = determineReservationStatus(user, request.getStatus(), false);
+        if (updatedStatus != null) {
+            reservation.setStatus(updatedStatus);
         }
 
         Reservation updatedReservation = reservationRepository.save(reservation);
@@ -237,6 +223,21 @@ public class ReservationService {
 
         reservationRepository.delete(reservation);
         log.info("Deleted reservation id={} by user='{}'", id, user.getUsername());
+    }
+
+    /**
+     * Computes the target reservation status based on user role and operation type.
+     * Regular users always result in PENDING.
+     * Admins can set an explicit status, defaulting to CONFIRMED on creation.
+     */
+    private ReservationStatus determineReservationStatus(User user, ReservationStatus requestedStatus, boolean isCreate) {
+        if (user.getRole() == Role.ADMIN) {
+            if (requestedStatus != null) {
+                return requestedStatus;
+            }
+            return isCreate ? ReservationStatus.CONFIRMED : null;
+        }
+        return ReservationStatus.PENDING;
     }
 
     /**
