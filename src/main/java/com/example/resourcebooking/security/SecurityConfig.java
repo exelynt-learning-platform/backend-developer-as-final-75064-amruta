@@ -61,39 +61,57 @@ public class SecurityConfig {
             throws Exception {
 
         http
-                .csrf(csrf -> csrf.disable())
+                .csrf()
+                .disable()
 
-                .sessionManagement(session ->
-                        session.sessionCreationPolicy(
-                                SessionCreationPolicy.STATELESS))
+                .sessionManagement()
+                .sessionCreationPolicy(
+                        SessionCreationPolicy.STATELESS)
 
-                .authorizeHttpRequests(auth -> auth
+                .and()
 
-                        .antMatchers(
-                                "/auth/**",
-                                "/swagger-ui/**",
-                                "/swagger-ui.html",
-                                "/v3/api-docs/**"
-                        ).permitAll()
+                .authorizeRequests()
 
-                        .antMatchers(HttpMethod.GET, "/api/resources/**")
-                        .hasAnyRole("USER", "ADMIN")
-
-                        .antMatchers("/api/resources/**")
-                        .hasRole("ADMIN")
-
-                        .antMatchers(HttpMethod.POST, "/reservations")
-                        .hasAnyRole("USER", "ADMIN")
-
-                        .antMatchers(HttpMethod.GET, "/reservations/**")
-                        .hasAnyRole("USER", "ADMIN")
-
-                        .antMatchers("/reservations/**")
-                        .hasRole("ADMIN")
-
-                        .anyRequest()
-                        .authenticated()
+                .antMatchers(
+                        "/auth/**",
+                        "/swagger-ui/**",
+                        "/swagger-ui.html",
+                        "/v3/api-docs/**"
                 )
+                .permitAll()
+
+                .antMatchers(
+                        HttpMethod.GET,
+                        "/resources/**"
+                )
+                .hasAnyRole("USER", "ADMIN")
+
+                .antMatchers(
+                        "/resources/**"
+                )
+                .hasRole("ADMIN")
+
+                .antMatchers(
+                        HttpMethod.POST,
+                        "/reservations"
+                )
+                .hasAnyRole("USER", "ADMIN")
+
+                .antMatchers(
+                        HttpMethod.GET,
+                        "/reservations/**"
+                )
+                .hasAnyRole("USER", "ADMIN")
+
+                .antMatchers(
+                        "/reservations/**"
+                )
+                .hasRole("ADMIN")
+
+                .anyRequest()
+                .authenticated()
+
+                .and()
 
                 .authenticationProvider(
                         authenticationProvider())

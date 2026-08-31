@@ -44,6 +44,9 @@ public class AuthService {
         String role =
                 userDetails.getAuthorities()
                         .stream()
+                        .filter(authority ->
+                                authority.getAuthority()
+                                        .startsWith("ROLE_"))
                         .findFirst()
                         .map(GrantedAuthority::getAuthority)
                         .map(authority ->

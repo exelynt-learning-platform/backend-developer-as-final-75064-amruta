@@ -12,6 +12,8 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import io.jsonwebtoken.JwtException;
+
 import java.io.IOException;
 
 @Component
@@ -19,7 +21,6 @@ public class JwtAuthenticationFilter
         extends OncePerRequestFilter {
 
     private final JwtService jwtService;
-
     private final CustomUserDetailsService userDetailsService;
 
     public JwtAuthenticationFilter(
@@ -47,8 +48,7 @@ public class JwtAuthenticationFilter
             return;
         }
 
-        String token =
-                authHeader.substring(7);
+        String token = authHeader.substring(7);
 
         try {
 
@@ -85,8 +85,10 @@ public class JwtAuthenticationFilter
                 }
             }
 
-        } catch (Exception ignored) {
+        } catch (JwtException | IllegalArgumentException e) {
+
             // Invalid JWT is treated as unauthenticated.
+            SecurityContextHolder.clearContext();
         }
 
         filterChain.doFilter(request, response);

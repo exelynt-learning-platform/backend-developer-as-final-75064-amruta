@@ -4,6 +4,7 @@ import com.example.resourcebooking.model.*;
 import com.example.resourcebooking.repository.ResourceRepository;
 import com.example.resourcebooking.repository.UserRepository;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,6 +14,12 @@ import java.math.BigDecimal;
 
 @Configuration
 public class DataInitializer {
+
+    @Value("${seed.admin.password}")
+    private String adminPassword;
+
+    @Value("${seed.user.password}")
+    private String userPassword;
 
     @Bean
     CommandLineRunner initializeData(
@@ -28,7 +35,7 @@ public class DataInitializer {
                 User admin = new User(
                         "admin",
                         "admin@example.com",
-                        passwordEncoder.encode("admin123"),
+                        passwordEncoder.encode(adminPassword),
                         Role.ADMIN
                 );
 
@@ -41,7 +48,7 @@ public class DataInitializer {
                 User user = new User(
                         "user",
                         "user@example.com",
-                        passwordEncoder.encode("user123"),
+                        passwordEncoder.encode(userPassword),
                         Role.USER
                 );
 

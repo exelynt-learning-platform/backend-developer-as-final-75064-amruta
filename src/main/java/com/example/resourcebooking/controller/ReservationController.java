@@ -1,4 +1,4 @@
-	package com.example.resourcebooking.controller;
+package com.example.resourcebooking.controller;
 
 import java.math.BigDecimal;
 

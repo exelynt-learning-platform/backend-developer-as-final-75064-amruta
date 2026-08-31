@@ -5,12 +5,21 @@ import com.example.resourcebooking.dto.ReservationResponse;
 import com.example.resourcebooking.exception.BadRequestException;
 import com.example.resourcebooking.exception.ReservationNotFoundException;
 import com.example.resourcebooking.exception.ResourceNotFoundException;
-import com.example.resourcebooking.model.*;
-import com.example.resourcebooking.repository.*;
+import com.example.resourcebooking.model.Reservation;
+import com.example.resourcebooking.model.ReservationStatus;
+import com.example.resourcebooking.model.Resource;
+import com.example.resourcebooking.model.Role;
+import com.example.resourcebooking.model.User;
+import com.example.resourcebooking.repository.ReservationRepository;
+import com.example.resourcebooking.repository.ResourceRepository;
+import com.example.resourcebooking.repository.UserRepository;
 
 import javax.persistence.criteria.Predicate;
 
-import org.springframework.data.domain.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
@@ -23,6 +32,18 @@ import java.util.List;
 
 @Service
 public class ReservationService {
+
+    private static final int MIN_PAGE_SIZE = 1;
+    private static final int MAX_PAGE_SIZE = 100;
+
+    private static final List<String> ALLOWED_SORT_FIELDS = List.of(
+            "id",
+            "price",
+            "startTime",
+            "endTime",
+            "createdAt",
+            "status"
+    );
 
     private final ReservationRepository reservationRepository;
     private final ResourceRepository resourceRepository;
@@ -48,12 +69,12 @@ public class ReservationService {
 
         User user = getAuthenticatedUser(authentication);
 
-        Resource resource =
-                resourceRepository.findById(request.getResourceId())
-                        .orElseThrow(() ->
-                                new ResourceNotFoundException(
-                                        "Resource not found with id: "
-                                                + request.getResourceId()));
+        Resource resource = resourceRepository
+                .findById(request.getResourceId())
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Resource not found with id: "
+                                        + request.getResourceId()));
 
         if (!resource.isAvailable()) {
             throw new BadRequestException(
@@ -66,10 +87,7 @@ public class ReservationService {
         reservation.setResource(resource);
         reservation.setStartTime(request.getStartTime());
         reservation.setEndTime(request.getEndTime());
-
-        // Price is taken from the resource.
         reservation.setPrice(resource.getPrice());
-
         reservation.setStatus(ReservationStatus.PENDING);
 
         return toResponse(
@@ -86,15 +104,123 @@ public class ReservationService {
             String sortBy,
             String direction) {
 
+        validatePagination(page, size);
+        validatePriceRange(minPrice, maxPrice);
+
+        User user = getAuthenticatedUser(authentication);
+
+        Pageable pageable = PageRequest.of(
+                page,
+                size,
+                createSort(sortBy, direction));
+
+        Specification<Reservation> specification =
+                buildReservationSpecification(
+                        user,
+                        status,
+                        minPrice,
+                        maxPrice);
+
+        return reservationRepository
+                .findAll(specification, pageable)
+                .map(this::toResponse);
+    }
+
+    public ReservationResponse getById(
+            Long id,
+            Authentication authentication) {
+
+        Reservation reservation = findReservation(id);
+
+        User user = getAuthenticatedUser(authentication);
+
+        checkOwnership(reservation, user);
+
+        return toResponse(reservation);
+    }
+
+    public ReservationResponse update(
+            Long id,
+            ReservationRequest request,
+            Authentication authentication) {
+
+        validateTimes(
+                request.getStartTime(),
+                request.getEndTime());
+
+        Reservation reservation = findReservation(id);
+
+        User user = getAuthenticatedUser(authentication);
+
+        checkOwnership(reservation, user);
+
+        Resource resource = resourceRepository
+                .findById(request.getResourceId())
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Resource not found with id: "
+                                        + request.getResourceId()));
+
+        if (!resource.isAvailable()) {
+            throw new BadRequestException(
+                    "Resource is not available");
+        }
+
+        reservation.setResource(resource);
+        reservation.setStartTime(request.getStartTime());
+        reservation.setEndTime(request.getEndTime());
+        reservation.setPrice(resource.getPrice());
+
+        return toResponse(
+                reservationRepository.save(reservation));
+    }
+
+    public void delete(
+            Long id,
+            Authentication authentication) {
+
+        Reservation reservation = findReservation(id);
+
+        User user = getAuthenticatedUser(authentication);
+
+        checkOwnership(reservation, user);
+
+        reservationRepository.delete(reservation);
+    }
+
+    private Reservation findReservation(Long id) {
+
+        return reservationRepository
+                .findById(id)
+                .orElseThrow(() ->
+                        new ReservationNotFoundException(
+                                "Reservation not found with id: "
+                                        + id));
+    }
+
+    private void validatePagination(
+            int page,
+            int size) {
+
         if (page < 0) {
             throw new BadRequestException(
                     "Page cannot be negative");
         }
 
-        if (size < 1 || size > 100) {
+        if (size < MIN_PAGE_SIZE ||
+                size > MAX_PAGE_SIZE) {
+
             throw new BadRequestException(
-                    "Size must be between 1 and 100");
+                    "Size must be between "
+                            + MIN_PAGE_SIZE
+                            + " and "
+                            + MAX_PAGE_SIZE);
         }
+    }
+
+    private void validatePriceRange(
+            BigDecimal minPrice,
+            BigDecimal maxPrice) {
 
         if (minPrice != null &&
                 minPrice.compareTo(BigDecimal.ZERO) < 0) {
@@ -117,157 +243,108 @@ public class ReservationService {
             throw new BadRequestException(
                     "Minimum price cannot be greater than maximum price");
         }
-
-        User user = getAuthenticatedUser(authentication);
-
-        Sort sort = createSort(sortBy, direction);
-
-        Pageable pageable =
-                PageRequest.of(
-                        page,
-                        size,
-                        sort);
-
-        Specification<Reservation> specification =
-                (root, query, criteriaBuilder) -> {
-
-                    List<Predicate> predicates =
-                            new ArrayList<>();
-
-                    if (user.getRole() == Role.USER) {
-
-                        predicates.add(
-                                criteriaBuilder.equal(
-                                        root.get("user").get("id"),
-                                        user.getId()
-                                )
-                        );
-                    }
-
-                    if (status != null) {
-
-                        predicates.add(
-                                criteriaBuilder.equal(
-                                        root.get("status"),
-                                        status
-                                )
-                        );
-                    }
-
-                    if (minPrice != null) {
-
-                        predicates.add(
-                                criteriaBuilder.greaterThanOrEqualTo(
-                                        root.get("price"),
-                                        minPrice
-                                )
-                        );
-                    }
-
-                    if (maxPrice != null) {
-
-                        predicates.add(
-                                criteriaBuilder.lessThanOrEqualTo(
-                                        root.get("price"),
-                                        maxPrice
-                                )
-                        );
-                    }
-
-                    return criteriaBuilder.and(
-                            predicates.toArray(
-                                    new Predicate[0]));
-                };
-
-        return reservationRepository
-                .findAll(specification, pageable)
-                .map(this::toResponse);
     }
 
-    public ReservationResponse getById(
-            Long id,
-            Authentication authentication) {
+    private Specification<Reservation>
+    buildReservationSpecification(
+            User user,
+            ReservationStatus status,
+            BigDecimal minPrice,
+            BigDecimal maxPrice) {
 
-        Reservation reservation =
-                reservationRepository.findById(id)
-                        .orElseThrow(() ->
-                                new ReservationNotFoundException(
-                                        "Reservation not found with id: "
-                                                + id));
+        return (root, query, criteriaBuilder) -> {
 
-        User user =
-                getAuthenticatedUser(authentication);
+            List<Predicate> predicates = new ArrayList<>();
 
-        checkOwnership(reservation, user);
+            addOwnershipPredicate(
+                    predicates,
+                    root,
+                    criteriaBuilder,
+                    user);
 
-        return toResponse(reservation);
+            addStatusPredicate(
+                    predicates,
+                    root,
+                    criteriaBuilder,
+                    status);
+
+            addMinPricePredicate(
+                    predicates,
+                    root,
+                    criteriaBuilder,
+                    minPrice);
+
+            addMaxPricePredicate(
+                    predicates,
+                    root,
+                    criteriaBuilder,
+                    maxPrice);
+
+            return criteriaBuilder.and(
+                    predicates.toArray(new Predicate[0]));
+        };
     }
 
-  public ReservationResponse update(
-        Long id,
-        ReservationRequest request,
-        Authentication authentication) {
+    private void addOwnershipPredicate(
+            List<Predicate> predicates,
+            javax.persistence.criteria.Root<Reservation> root,
+            javax.persistence.criteria.CriteriaBuilder criteriaBuilder,
+            User user) {
 
-    validateTimes(
-            request.getStartTime(),
-            request.getEndTime());
+        if (user.getRole() == Role.USER) {
 
-    Reservation reservation =
-            reservationRepository.findById(id)
-                    .orElseThrow(() ->
-                            new ReservationNotFoundException(
-                                    "Reservation not found with id: "
-                                            + id));
-
-    // Get currently logged-in user from JWT
-    User user = getAuthenticatedUser(authentication);
-
-    // USER -> own reservation only
-    // ADMIN -> any reservation
-    checkOwnership(reservation, user);
-
-    Resource resource =
-            resourceRepository.findById(request.getResourceId())
-                    .orElseThrow(() ->
-                            new ResourceNotFoundException(
-                                    "Resource not found with id: "
-                                            + request.getResourceId()));
-
-    if (!resource.isAvailable()) {
-        throw new BadRequestException(
-                "Resource is not available");
+            predicates.add(
+                    criteriaBuilder.equal(
+                            root.get("user").get("id"),
+                            user.getId()));
+        }
     }
 
-    reservation.setResource(resource);
-    reservation.setStartTime(request.getStartTime());
-    reservation.setEndTime(request.getEndTime());
-    reservation.setPrice(resource.getPrice());
+    private void addStatusPredicate(
+            List<Predicate> predicates,
+            javax.persistence.criteria.Root<Reservation> root,
+            javax.persistence.criteria.CriteriaBuilder criteriaBuilder,
+            ReservationStatus status) {
 
-    return toResponse(
-            reservationRepository.save(reservation));
-  }
-  
-  public void delete(
-	        Long id,
-	        Authentication authentication) {
+        if (status != null) {
 
-	    Reservation reservation =
-	            reservationRepository.findById(id)
-	                    .orElseThrow(() ->
-	                            new ReservationNotFoundException(
-	                                    "Reservation not found with id: "
-	                                            + id));
+            predicates.add(
+                    criteriaBuilder.equal(
+                            root.get("status"),
+                            status));
+        }
+    }
 
-	    // Get logged-in user from JWT
-	    User user = getAuthenticatedUser(authentication);
+    private void addMinPricePredicate(
+            List<Predicate> predicates,
+            javax.persistence.criteria.Root<Reservation> root,
+            javax.persistence.criteria.CriteriaBuilder criteriaBuilder,
+            BigDecimal minPrice) {
 
-	    // USER -> can delete only own reservation
-	    // ADMIN -> can delete any reservation
-	    checkOwnership(reservation, user);
+        if (minPrice != null) {
 
-	    reservationRepository.delete(reservation);
-	}
-  
+            predicates.add(
+                    criteriaBuilder.greaterThanOrEqualTo(
+                            root.get("price"),
+                            minPrice));
+        }
+    }
+
+    private void addMaxPricePredicate(
+            List<Predicate> predicates,
+            javax.persistence.criteria.Root<Reservation> root,
+            javax.persistence.criteria.CriteriaBuilder criteriaBuilder,
+            BigDecimal maxPrice) {
+
+        if (maxPrice != null) {
+
+            predicates.add(
+                    criteriaBuilder.lessThanOrEqualTo(
+                            root.get("price"),
+                            maxPrice));
+        }
+    }
+
     private User getAuthenticatedUser(
             Authentication authentication) {
 
@@ -293,9 +370,11 @@ public class ReservationService {
             return;
         }
 
-        if (!reservation.getUser()
-                .getId()
-                .equals(user.getId())) {
+        if (reservation.getUser() == null ||
+                reservation.getUser().getId() == null ||
+                !reservation.getUser()
+                        .getId()
+                        .equals(user.getId())) {
 
             throw new AccessDeniedException(
                     "You can access only your own reservations");
@@ -306,7 +385,14 @@ public class ReservationService {
             LocalDateTime start,
             LocalDateTime end) {
 
+        if (start == null || end == null) {
+
+            throw new BadRequestException(
+                    "Start time and end time are required");
+        }
+
         if (!end.isAfter(start)) {
+
             throw new BadRequestException(
                     "End time must be after start time");
         }
@@ -324,21 +410,11 @@ public class ReservationService {
                     "createdAt");
         }
 
-        List<String> allowedFields =
-                List.of(
-                        "id",
-                        "price",
-                        "startTime",
-                        "endTime",
-                        "createdAt",
-                        "status"
-                );
-
-        if (!allowedFields.contains(sortBy)) {
+        if (!ALLOWED_SORT_FIELDS.contains(sortBy)) {
 
             throw new BadRequestException(
                     "Invalid sort field. Allowed: "
-                            + allowedFields);
+                            + ALLOWED_SORT_FIELDS);
         }
 
         Sort.Direction sortDirection =
