@@ -225,16 +225,9 @@ class ReservationServiceTest {
     @Test
     @DisplayName("Should throw BadRequestException when invalid sort direction is supplied")
     void testGetReservations_ThrowsWhenInvalidSortDirection() {
-        when(authentication.isAuthenticated()).thenReturn(true);
-        when(authentication.getName()).thenReturn("john_doe");
-        when(userRepository.findByUsername("john_doe")).thenReturn(Optional.of(testUser));
-
-        ReservationSearchCriteria criteria = new ReservationSearchCriteria();
-        criteria.setDirection("invalid_direction");
-
         BadRequestException ex = assertThrows(
                 BadRequestException.class,
-                () -> reservationService.getReservations(authentication, criteria));
+                () -> new ReservationSearchCriteria(null, null, null, 0, 10, null, "invalid_direction"));
 
         assertTrue(ex.getMessage().contains("Invalid sort direction"));
     }

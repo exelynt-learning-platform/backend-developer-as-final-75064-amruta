@@ -1,11 +1,13 @@
 package com.example.resourcebooking.dto;
 
+import com.example.resourcebooking.exception.BadRequestException;
 import com.example.resourcebooking.model.ReservationStatus;
 
 import java.math.BigDecimal;
 
 /**
  * Data Transfer Object encapsulating search, filter, and pagination parameters for reservations.
+ * Validates pagination boundaries and sort directions early upon construction and mutation.
  */
 public class ReservationSearchCriteria {
 
@@ -34,7 +36,7 @@ public class ReservationSearchCriteria {
         this.page = page;
         this.size = size;
         this.sortBy = sortBy;
-        this.direction = (direction != null && !direction.isBlank()) ? direction : "desc";
+        setDirection(direction);
     }
 
     public ReservationStatus getStatus() {
@@ -90,6 +92,16 @@ public class ReservationSearchCriteria {
     }
 
     public void setDirection(String direction) {
-        this.direction = direction;
+        if (direction == null || direction.isBlank()) {
+            this.direction = "desc";
+            return;
+        }
+
+        String normalized = direction.trim().toLowerCase();
+        if (!"asc".equals(normalized) && !"desc".equals(normalized)) {
+            throw new BadRequestException("Invalid sort direction '" + direction + "'. Allowed values: 'asc', 'desc'");
+        }
+
+        this.direction = normalized;
     }
 }

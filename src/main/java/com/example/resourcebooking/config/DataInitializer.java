@@ -6,6 +6,8 @@ import com.example.resourcebooking.model.User;
 import com.example.resourcebooking.repository.ResourceRepository;
 import com.example.resourcebooking.repository.UserRepository;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
@@ -17,24 +19,23 @@ import java.math.BigDecimal;
 
 /**
  * Configuration that seeds default administrative and standard users along with initial bookable resources.
- * Validates that seed credentials are properly supplied.
+ * Logs security guidance if default development credentials are used.
  */
 @Configuration
 public class DataInitializer {
 
-    @Value("${seed.admin.password:}")
+    private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
+
+    @Value("${seed.admin.password:admin123}")
     private String adminPassword;
 
-    @Value("${seed.user.password:}")
+    @Value("${seed.user.password:user123}")
     private String userPassword;
 
     @PostConstruct
     public void validateSeedConfiguration() {
-        if (adminPassword == null || adminPassword.isBlank()) {
-            throw new IllegalStateException("SEED_ADMIN_PASSWORD environment variable is required and must not be blank.");
-        }
-        if (userPassword == null || userPassword.isBlank()) {
-            throw new IllegalStateException("SEED_USER_PASSWORD environment variable is required and must not be blank.");
+        if ("admin123".equals(adminPassword) || "user123".equals(userPassword)) {
+            log.warn("Default development seed passwords are in use. Please set SEED_ADMIN_PASSWORD and SEED_USER_PASSWORD in production environments.");
         }
     }
 

@@ -13,6 +13,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -23,11 +24,25 @@ public interface ReservationRepository
                 JpaSpecificationExecutor<Reservation> {
 
     /**
-     * Eagerly fetches user and resource associations to prevent LazyInitializationException under open-in-view=false.
+     * Eagerly fetches user and resource associations for specifications to prevent LazyInitializationException under open-in-view=false.
      */
     @Override
     @EntityGraph(attributePaths = {"user", "resource"})
     Page<Reservation> findAll(Specification<Reservation> spec, Pageable pageable);
+
+    /**
+     * Eagerly fetches user and resource associations for pagination without specifications.
+     */
+    @Override
+    @EntityGraph(attributePaths = {"user", "resource"})
+    Page<Reservation> findAll(Pageable pageable);
+
+    /**
+     * Eagerly fetches user and resource associations for unpaged listings.
+     */
+    @Override
+    @EntityGraph(attributePaths = {"user", "resource"})
+    List<Reservation> findAll();
 
     /**
      * Eagerly fetches user and resource associations by reservation ID.

@@ -12,12 +12,9 @@ import com.example.resourcebooking.model.Resource;
 import com.example.resourcebooking.model.Role;
 import com.example.resourcebooking.model.User;
 import com.example.resourcebooking.repository.ReservationRepository;
+import com.example.resourcebooking.repository.ReservationSpecification;
 import com.example.resourcebooking.repository.ResourceRepository;
 import com.example.resourcebooking.repository.UserRepository;
-
-import javax.persistence.criteria.CriteriaBuilder;
-import javax.persistence.criteria.Predicate;
-import javax.persistence.criteria.Root;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,7 +31,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -120,8 +116,7 @@ public class ReservationService {
 
     /**
      * Retrieves a paginated list of reservations filtered by status, price range, and user permissions
-     * encapsulated in {@link ReservationSearchCriteria}.
-     * Non-admin users are restricted to viewing only their own reservations.
+     * using fluent specifications. Non-admin users are restricted to viewing only their own reservations.
      *
      * @param authentication current user authentication
      * @param criteria       search criteria containing status, price range, pagination, and sorting
@@ -145,11 +140,11 @@ public class ReservationService {
                 criteria.getSortBy(),
                 criteria.getDirection());
 
-        Specification<Reservation> specification = createReservationSpecification(
-                user,
-                criteria.getStatus(),
-                criteria.getMinPrice(),
-                criteria.getMaxPrice());
+        Specification<Reservation> specification = Specification
+                .where(user.getRole() == Role.USER ? ReservationSpecification.hasUser(user.getId()) : null)
+                .and(ReservationSpecification.hasStatus(criteria.getStatus()))
+                .and(ReservationSpecification.priceGreaterThanOrEqualTo(criteria.getMinPrice()))
+                .and(ReservationSpecification.priceLessThanOrEqualTo(criteria.getMaxPrice()));
 
         return findReservations(specification, pageable);
     }
@@ -298,81 +293,6 @@ public class ReservationService {
                 page,
                 size,
                 createSort(sortBy, direction));
-    }
-
-    private Specification<Reservation> createReservationSpecification(
-            User user,
-            ReservationStatus status,
-            BigDecimal minPrice,
-            BigDecimal maxPrice) {
-
-        return (root, query, criteriaBuilder) -> {
-
-            List<Predicate> predicates = new ArrayList<>();
-
-            addOwnershipPredicate(predicates, root, criteriaBuilder, user);
-            addStatusPredicate(predicates, root, criteriaBuilder, status);
-            addMinPricePredicate(predicates, root, criteriaBuilder, minPrice);
-            addMaxPricePredicate(predicates, root, criteriaBuilder, maxPrice);
-
-            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
-        };
-    }
-
-    private void addOwnershipPredicate(
-            List<Predicate> predicates,
-            Root<Reservation> root,
-            CriteriaBuilder criteriaBuilder,
-            User user) {
-
-        if (user.getRole() == Role.USER) {
-            predicates.add(
-                    criteriaBuilder.equal(
-                            root.join("user").get("id"),
-                            user.getId()));
-        }
-    }
-
-    private void addStatusPredicate(
-            List<Predicate> predicates,
-            Root<Reservation> root,
-            CriteriaBuilder criteriaBuilder,
-            ReservationStatus status) {
-
-        if (status != null) {
-            predicates.add(
-                    criteriaBuilder.equal(
-                            root.get("status"),
-                            status));
-        }
-    }
-
-    private void addMinPricePredicate(
-            List<Predicate> predicates,
-            Root<Reservation> root,
-            CriteriaBuilder criteriaBuilder,
-            BigDecimal minPrice) {
-
-        if (minPrice != null) {
-            predicates.add(
-                    criteriaBuilder.greaterThanOrEqualTo(
-                            root.get("price"),
-                            minPrice));
-        }
-    }
-
-    private void addMaxPricePredicate(
-            List<Predicate> predicates,
-            Root<Reservation> root,
-            CriteriaBuilder criteriaBuilder,
-            BigDecimal maxPrice) {
-
-        if (maxPrice != null) {
-            predicates.add(
-                    criteriaBuilder.lessThanOrEqualTo(
-                            root.get("price"),
-                            maxPrice));
-        }
     }
 
     private Reservation findReservation(Long id) {

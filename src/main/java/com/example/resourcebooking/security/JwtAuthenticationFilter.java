@@ -1,12 +1,11 @@
 package com.example.resourcebooking.security;
 
-import javax.servlet.FilterChain;
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.jsonwebtoken.JwtException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -14,13 +13,19 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import io.jsonwebtoken.JwtException;
-
+import javax.servlet.FilterChain;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Filter that intercepts incoming HTTP requests, extracts JWT tokens from the
  * Authorization header, validates them, and establishes the Spring Security authentication context.
+ * Immediately rejects requests with invalid or expired tokens with HTTP 401 Unauthorized.
  */
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -29,13 +34,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final CustomUserDetailsService userDetailsService;
+    private final ObjectMapper objectMapper;
 
     public JwtAuthenticationFilter(
             JwtService jwtService,
-            CustomUserDetailsService userDetailsService) {
+            CustomUserDetailsService userDetailsService,
+            ObjectMapper objectMapper) {
 
         this.jwtService = jwtService;
         this.userDetailsService = userDetailsService;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -71,16 +79,34 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             new WebAuthenticationDetailsSource().buildDetails(request));
 
                     SecurityContextHolder.getContext().setAuthentication(authentication);
+                } else {
+                    handleAuthenticationFailure(response, "Invalid or expired JWT token");
+                    return;
                 }
             }
         } catch (JwtException | IllegalArgumentException e) {
             String sanitizedUri = request.getRequestURI() != null
                     ? request.getRequestURI().replaceAll("[\r\n]", "")
                     : "unknown";
-            log.warn("Invalid JWT token received for path: {}", sanitizedUri);
+            log.warn("Invalid JWT token received for path {}: {}", sanitizedUri, e.getMessage());
             SecurityContextHolder.clearContext();
+
+            handleAuthenticationFailure(response, "Invalid or expired JWT token");
+            return;
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private void handleAuthenticationFailure(HttpServletResponse response, String message) throws IOException {
+        response.setStatus(HttpStatus.UNAUTHORIZED.value());
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now().toString());
+        body.put("status", HttpStatus.UNAUTHORIZED.value());
+        body.put("message", message);
+
+        response.getWriter().write(objectMapper.writeValueAsString(body));
     }
 }
