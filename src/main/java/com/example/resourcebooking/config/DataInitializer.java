@@ -36,8 +36,7 @@ public class DataInitializer {
                         "admin",
                         "admin@example.com",
                         passwordEncoder.encode(adminPassword),
-                        Role.ADMIN
-                );
+                        Role.ADMIN);
 
                 userRepository.save(admin);
             }
@@ -49,8 +48,7 @@ public class DataInitializer {
                         "user",
                         "user@example.com",
                         passwordEncoder.encode(userPassword),
-                        Role.USER
-                );
+                        Role.USER);
 
                 userRepository.save(user);
             }
