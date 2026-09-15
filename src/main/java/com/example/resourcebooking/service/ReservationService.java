@@ -22,9 +22,7 @@ import javax.persistence.criteria.Root;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
@@ -45,17 +43,6 @@ import java.util.List;
 public class ReservationService {
 
     private static final Logger log = LoggerFactory.getLogger(ReservationService.class);
-
-    private static final int MIN_PAGE_SIZE = 1;
-    private static final int MAX_PAGE_SIZE = 100;
-
-    private static final List<String> ALLOWED_SORT_FIELDS = List.of(
-            "id",
-            "price",
-            "startTime",
-            "endTime",
-            "createdAt",
-            "status");
 
     private final ReservationRepository reservationRepository;
     private final ResourceRepository resourceRepository;
@@ -130,19 +117,13 @@ public class ReservationService {
             Authentication authentication,
             ReservationSearchCriteria criteria) {
 
+        User user = getAuthenticatedUser(authentication);
+
         if (criteria == null) {
             criteria = new ReservationSearchCriteria();
         }
 
-        validatePagination(criteria.getPage(), criteria.getSize());
-        validatePriceRange(criteria.getMinPrice(), criteria.getMaxPrice());
-
-        User user = getAuthenticatedUser(authentication);
-        Pageable pageable = createPageable(
-                criteria.getPage(),
-                criteria.getSize(),
-                criteria.getSortBy(),
-                criteria.getDirection());
+        criteria.validate();
 
         Specification<Reservation> specification = createReservationSpecification(
                 user,
@@ -150,7 +131,7 @@ public class ReservationService {
                 criteria.getMinPrice(),
                 criteria.getMaxPrice());
 
-        return findReservations(specification, pageable);
+        return findReservations(specification, criteria.toPageable());
     }
 
     /**
@@ -287,18 +268,6 @@ public class ReservationService {
                 .map(this::toResponse);
     }
 
-    private Pageable createPageable(
-            int page,
-            int size,
-            String sortBy,
-            String direction) {
-
-        return PageRequest.of(
-                page,
-                size,
-                createSort(sortBy, direction));
-    }
-
     private Specification<Reservation> createReservationSpecification(
             User user,
             ReservationStatus status,
@@ -397,33 +366,6 @@ public class ReservationService {
         }
     }
 
-    private void validatePagination(int page, int size) {
-
-        if (page < 0) {
-            throw new BadRequestException("Page cannot be negative");
-        }
-
-        if (size < MIN_PAGE_SIZE || size > MAX_PAGE_SIZE) {
-            throw new BadRequestException(
-                    "Size must be between " + MIN_PAGE_SIZE + " and " + MAX_PAGE_SIZE);
-        }
-    }
-
-    private void validatePriceRange(BigDecimal minPrice, BigDecimal maxPrice) {
-
-        if (minPrice != null && minPrice.compareTo(BigDecimal.ZERO) < 0) {
-            throw new BadRequestException("Minimum price cannot be negative");
-        }
-
-        if (maxPrice != null && maxPrice.compareTo(BigDecimal.ZERO) < 0) {
-            throw new BadRequestException("Maximum price cannot be negative");
-        }
-
-        if (minPrice != null && maxPrice != null && minPrice.compareTo(maxPrice) > 0) {
-            throw new BadRequestException("Minimum price cannot be greater than maximum price");
-        }
-    }
-
     private User getAuthenticatedUser(Authentication authentication) {
 
         if (authentication == null || !authentication.isAuthenticated()) {
@@ -458,39 +400,6 @@ public class ReservationService {
         if (!end.isAfter(start)) {
             throw new BadRequestException("End time must be after start time");
         }
-    }
-
-    private Sort createSort(String sortBy, String direction) {
-
-        Sort.Direction sortDirection = getSortDirection(direction);
-
-        if (sortBy == null || sortBy.isBlank()) {
-            return Sort.by(sortDirection, "createdAt");
-        }
-
-        validateSortField(sortBy);
-
-        return Sort.by(sortDirection, sortBy);
-    }
-
-    private void validateSortField(String sortBy) {
-
-        if (!ALLOWED_SORT_FIELDS.contains(sortBy)) {
-            throw new BadRequestException("Invalid sort field. Allowed: " + ALLOWED_SORT_FIELDS);
-        }
-    }
-
-    private Sort.Direction getSortDirection(String direction) {
-
-        if (direction == null || direction.isBlank() || "desc".equalsIgnoreCase(direction)) {
-            return Sort.Direction.DESC;
-        }
-
-        if ("asc".equalsIgnoreCase(direction)) {
-            return Sort.Direction.ASC;
-        }
-
-        throw new BadRequestException("Invalid sort direction '" + direction + "'. Allowed values: 'asc', 'desc'");
     }
 
     private ReservationResponse toResponse(Reservation reservation) {

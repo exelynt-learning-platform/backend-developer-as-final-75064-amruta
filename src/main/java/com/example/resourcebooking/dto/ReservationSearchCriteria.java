@@ -1,21 +1,28 @@
 package com.example.resourcebooking.dto;
 
+import com.example.resourcebooking.constants.PaginationConstants;
+import com.example.resourcebooking.exception.BadRequestException;
 import com.example.resourcebooking.model.ReservationStatus;
+
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import java.math.BigDecimal;
 
 /**
  * Data Transfer Object encapsulating search, filter, and pagination parameters for reservations.
+ * Centralizes validation of pagination bounds, price ranges, and sorting parameters.
  */
 public class ReservationSearchCriteria {
 
     private ReservationStatus status;
     private BigDecimal minPrice;
     private BigDecimal maxPrice;
-    private int page = 0;
-    private int size = 10;
+    private int page = PaginationConstants.DEFAULT_PAGE;
+    private int size = PaginationConstants.DEFAULT_PAGE_SIZE;
     private String sortBy;
-    private String direction = "desc";
+    private String direction = PaginationConstants.DEFAULT_SORT_DIRECTION;
 
     public ReservationSearchCriteria() {
     }
@@ -34,7 +41,82 @@ public class ReservationSearchCriteria {
         this.page = page;
         this.size = size;
         this.sortBy = sortBy;
-        this.direction = (direction != null && !direction.isBlank()) ? direction : "desc";
+        this.direction = (direction != null && !direction.isBlank()) ? direction : PaginationConstants.DEFAULT_SORT_DIRECTION;
+    }
+
+    /**
+     * Validates all search criteria fields including pagination bounds, price ranges, and sorting options.
+     * Throws BadRequestException if any parameter is invalid.
+     */
+    public void validate() {
+        validatePagination();
+        validatePriceRange();
+        validateSorting();
+    }
+
+    private void validatePagination() {
+        if (page < 0) {
+            throw new BadRequestException("Page cannot be negative");
+        }
+        if (size < PaginationConstants.MIN_PAGE_SIZE || size > PaginationConstants.MAX_PAGE_SIZE) {
+            throw new BadRequestException(
+                    "Size must be between " + PaginationConstants.MIN_PAGE_SIZE + " and " + PaginationConstants.MAX_PAGE_SIZE);
+        }
+    }
+
+    private void validatePriceRange() {
+        if (minPrice != null && minPrice.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BadRequestException("Minimum price cannot be negative");
+        }
+        if (maxPrice != null && maxPrice.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BadRequestException("Maximum price cannot be negative");
+        }
+        if (minPrice != null && maxPrice != null && minPrice.compareTo(maxPrice) > 0) {
+            throw new BadRequestException("Minimum price cannot be greater than maximum price");
+        }
+    }
+
+    private void validateSorting() {
+        if (sortBy != null && !sortBy.isBlank() && !PaginationConstants.ALLOWED_SORT_FIELDS.contains(sortBy)) {
+            throw new BadRequestException("Invalid sort field. Allowed: " + PaginationConstants.ALLOWED_SORT_FIELDS);
+        }
+        getSortDirection();
+    }
+
+    /**
+     * Resolves and validates the sort direction.
+     *
+     * @return Sort.Direction (ASC or DESC)
+     */
+    public Sort.Direction getSortDirection() {
+        if (direction == null || direction.isBlank() || "desc".equalsIgnoreCase(direction)) {
+            return Sort.Direction.DESC;
+        }
+        if ("asc".equalsIgnoreCase(direction)) {
+            return Sort.Direction.ASC;
+        }
+        throw new BadRequestException("Invalid sort direction '" + direction + "'. Allowed values: 'asc', 'desc'");
+    }
+
+    /**
+     * Returns the valid sort-by field name, defaulting to 'createdAt' if not specified.
+     *
+     * @return valid sort field name
+     */
+    public String getValidSortBy() {
+        if (sortBy == null || sortBy.isBlank()) {
+            return PaginationConstants.DEFAULT_SORT_FIELD;
+        }
+        return sortBy;
+    }
+
+    /**
+     * Creates a Spring Data Pageable instance based on validated pagination and sorting parameters.
+     *
+     * @return Pageable object
+     */
+    public Pageable toPageable() {
+        return PageRequest.of(page, size, Sort.by(getSortDirection(), getValidSortBy()));
     }
 
     public ReservationStatus getStatus() {

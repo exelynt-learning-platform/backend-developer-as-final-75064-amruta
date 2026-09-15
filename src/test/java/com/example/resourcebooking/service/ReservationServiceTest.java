@@ -4,7 +4,6 @@ import com.example.resourcebooking.dto.ReservationRequest;
 import com.example.resourcebooking.dto.ReservationResponse;
 import com.example.resourcebooking.dto.ReservationSearchCriteria;
 import com.example.resourcebooking.exception.BadRequestException;
-import com.example.resourcebooking.exception.ReservationNotFoundException;
 import com.example.resourcebooking.model.Reservation;
 import com.example.resourcebooking.model.ReservationStatus;
 import com.example.resourcebooking.model.Resource;
