@@ -92,6 +92,18 @@ class ResourceServiceTest {
     }
 
     @Test
+    @DisplayName("Should retrieve only available resources when availableOnly is true")
+    void testGetAll_AvailableOnly() {
+        when(resourceRepository.findByAvailableTrue()).thenReturn(List.of(resource));
+
+        List<ResourceResponse> responses = resourceService.getAll(true);
+        assertEquals(1, responses.size());
+        assertEquals("Projector", responses.get(0).getName());
+        verify(resourceRepository).findByAvailableTrue();
+        verify(resourceRepository, never()).findAll();
+    }
+
+    @Test
     @DisplayName("Should delete resource")
     void testDelete() {
         when(resourceRepository.findById(1L)).thenReturn(Optional.of(resource));

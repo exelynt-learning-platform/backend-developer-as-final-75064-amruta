@@ -95,4 +95,31 @@ class ReservationControllerTest {
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.message").value("Resource is already booked for the selected time slot"));
     }
+
+    @Test
+    @WithMockUser(username = "test_user", roles = {"USER"})
+    @DisplayName("POST /api/reservations - Also accessible via /api/reservations prefix")
+    void testCreateReservation_UsingApiPrefix_Success() throws Exception {
+        LocalDateTime start = LocalDateTime.now().plusHours(1);
+        LocalDateTime end = LocalDateTime.now().plusHours(2);
+
+        ReservationRequest request = new ReservationRequest();
+        request.setResourceId(1L);
+        request.setStartTime(start);
+        request.setEndTime(end);
+
+        ReservationResponse response = new ReservationResponse(
+                10L, 1L, "test_user", 1L, "Room A",
+                start, end, new BigDecimal("100.00"), ReservationStatus.PENDING, LocalDateTime.now());
+
+        when(reservationService.create(any(), any())).thenReturn(response);
+
+        mockMvc.perform(post("/api/reservations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(10))
+                .andExpect(jsonPath("$.resourceName").value("Room A"))
+                .andExpect(jsonPath("$.status").value("PENDING"));
+    }
 }

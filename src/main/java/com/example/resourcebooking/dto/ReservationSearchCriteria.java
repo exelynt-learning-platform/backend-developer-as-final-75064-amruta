@@ -80,22 +80,25 @@ public class ReservationSearchCriteria {
         if (sortBy != null && !sortBy.isBlank() && !PaginationConstants.ALLOWED_SORT_FIELDS.contains(sortBy)) {
             throw new BadRequestException("Invalid sort field. Allowed: " + PaginationConstants.ALLOWED_SORT_FIELDS);
         }
-        getSortDirection();
+        if (direction != null && !direction.isBlank()
+                && !"asc".equalsIgnoreCase(direction)
+                && !"desc".equalsIgnoreCase(direction)) {
+            throw new BadRequestException(
+                    "Invalid sort direction '" + direction + "'. Allowed values: 'asc', 'desc'");
+        }
     }
 
     /**
-     * Resolves and validates the sort direction.
+     * Resolves the sort direction, defaulting to DESC if not explicitly set to ASC.
+     * Does not throw from getter to avoid unexpected binding/reflection errors.
      *
      * @return Sort.Direction (ASC or DESC)
      */
     public Sort.Direction getSortDirection() {
-        if (direction == null || direction.isBlank() || "desc".equalsIgnoreCase(direction)) {
-            return Sort.Direction.DESC;
-        }
         if ("asc".equalsIgnoreCase(direction)) {
             return Sort.Direction.ASC;
         }
-        throw new BadRequestException("Invalid sort direction '" + direction + "'. Allowed values: 'asc', 'desc'");
+        return Sort.Direction.DESC;
     }
 
     /**

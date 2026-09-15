@@ -22,8 +22,20 @@ import java.math.BigDecimal;
 @Configuration
 public class DataInitializer implements InitializingBean {
 
+    @Value("${seed.admin.username:admin}")
+    private String adminUsername;
+
+    @Value("${seed.admin.email:admin@example.com}")
+    private String adminEmail;
+
     @Value("${seed.admin.password:}")
     private String adminPassword;
+
+    @Value("${seed.user.username:user}")
+    private String userUsername;
+
+    @Value("${seed.user.email:user@example.com}")
+    private String userEmail;
 
     @Value("${seed.user.password:}")
     private String userPassword;
@@ -33,8 +45,14 @@ public class DataInitializer implements InitializingBean {
         if (adminPassword == null || adminPassword.isBlank()) {
             throw new IllegalStateException("SEED_ADMIN_PASSWORD environment variable is required and must not be blank.");
         }
+        if (adminPassword.length() < 8) {
+            throw new IllegalStateException("SEED_ADMIN_PASSWORD must be at least 8 characters long.");
+        }
         if (userPassword == null || userPassword.isBlank()) {
             throw new IllegalStateException("SEED_USER_PASSWORD environment variable is required and must not be blank.");
+        }
+        if (userPassword.length() < 8) {
+            throw new IllegalStateException("SEED_USER_PASSWORD must be at least 8 characters long.");
         }
     }
 
@@ -47,11 +65,11 @@ public class DataInitializer implements InitializingBean {
         return args -> {
 
             // Create admin user
-            if (!userRepository.existsByUsername("admin")) {
+            if (!userRepository.existsByUsername(adminUsername)) {
 
                 User admin = new User(
-                        "admin",
-                        "admin@example.com",
+                        adminUsername,
+                        adminEmail,
                         passwordEncoder.encode(adminPassword),
                         Role.ADMIN);
 
@@ -59,11 +77,11 @@ public class DataInitializer implements InitializingBean {
             }
 
             // Create normal user
-            if (!userRepository.existsByUsername("user")) {
+            if (!userRepository.existsByUsername(userUsername)) {
 
                 User user = new User(
-                        "user",
-                        "user@example.com",
+                        userUsername,
+                        userEmail,
                         passwordEncoder.encode(userPassword),
                         Role.USER);
 

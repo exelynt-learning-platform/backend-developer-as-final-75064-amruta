@@ -26,7 +26,7 @@ import javax.validation.Valid;
  * REST controller for managing reservations including creating, searching, updating, and cancelling bookings.
  */
 @RestController
-@RequestMapping("/reservations")
+@RequestMapping({"/api/reservations", "/reservations"})
 public class ReservationController {
 
     private final ReservationService reservationService;

@@ -16,7 +16,7 @@ import javax.validation.Valid;
  * REST controller for authentication endpoints (user login and JWT generation).
  */
 @RestController
-@RequestMapping("/auth")
+@RequestMapping({"/api/auth", "/auth"})
 public class AuthController {
 
     private final AuthService authService;

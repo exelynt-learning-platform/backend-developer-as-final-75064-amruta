@@ -1,5 +1,6 @@
 package com.example.resourcebooking.security;
 
+import com.example.resourcebooking.exception.ReservationNotFoundException;
 import com.example.resourcebooking.model.Reservation;
 import com.example.resourcebooking.repository.ReservationRepository;
 import org.springframework.security.core.Authentication;
@@ -65,5 +66,31 @@ public class ReservationSecurityService {
         }
 
         return reservationOpt;
+    }
+
+    /**
+     * Retrieves a reservation from the request-scoped cache or loads it from the repository.
+     * Throws ReservationNotFoundException if not found.
+     *
+     * @param reservationId reservation ID
+     * @return found reservation
+     * @throws ReservationNotFoundException if reservation does not exist
+     */
+    public Reservation getReservation(Long reservationId) {
+        return findReservationCached(reservationId)
+                .orElseThrow(() -> new ReservationNotFoundException(
+                        "Reservation not found with id: " + reservationId));
+    }
+
+    /**
+     * Evicts a reservation from the request-scoped cache.
+     *
+     * @param reservationId reservation ID to evict
+     */
+    public void evictReservation(Long reservationId) {
+        RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
+        if (attributes != null && reservationId != null) {
+            attributes.removeAttribute(CACHE_PREFIX + reservationId, RequestAttributes.SCOPE_REQUEST);
+        }
     }
 }

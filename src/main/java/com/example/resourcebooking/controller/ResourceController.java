@@ -27,13 +27,18 @@ public class ResourceController {
     }
 
     /**
-     * Retrieves all registered resources in the system.
+     * Retrieves all registered resources in the system, optionally filtered by availability.
      *
+     * @param available optional filter flag for available resources
      * @return list of resources
      */
     @GetMapping
-    public List<ResourceResponse> getAllResources() {
+    public List<ResourceResponse> getAllResources(
+            @RequestParam(name = "available", required = false) Boolean available) {
 
+        if (available != null) {
+            return resourceService.getAll(available);
+        }
         return resourceService.getAll();
     }
 

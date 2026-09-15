@@ -50,6 +50,18 @@ class ResourceControllerTest {
 
     @Test
     @WithMockUser(roles = {"USER"})
+    @DisplayName("GET /api/resources?available=true - Filters by availability")
+    void testGetResources_AvailableFilter_Allowed() throws Exception {
+        ResourceResponse res = new ResourceResponse(1L, "Laptop", "Dell", "EQUIPMENT", true, new BigDecimal("300.00"));
+        when(resourceService.getAll(true)).thenReturn(List.of(res));
+
+        mockMvc.perform(get("/api/resources").param("available", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].name").value("Laptop"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"USER"})
     @DisplayName("POST /api/resources - USER role is forbidden from creating resources")
     void testCreateResource_UserRole_Forbidden() throws Exception {
         ResourceRequest request = new ResourceRequest();

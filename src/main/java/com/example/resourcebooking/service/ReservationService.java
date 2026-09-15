@@ -21,6 +21,7 @@ import javax.persistence.criteria.Root;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -28,8 +29,6 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.context.request.RequestAttributes;
-import org.springframework.web.context.request.RequestContextHolder;
 
 import com.example.resourcebooking.security.ReservationSecurityService;
 
@@ -51,15 +50,30 @@ public class ReservationService {
     private final ReservationRepository reservationRepository;
     private final ResourceRepository resourceRepository;
     private final UserRepository userRepository;
+    private final ReservationSecurityService reservationSecurityService;
+
+    @Autowired
+    public ReservationService(
+            ReservationRepository reservationRepository,
+            ResourceRepository resourceRepository,
+            UserRepository userRepository,
+            ReservationSecurityService reservationSecurityService) {
+
+        this.reservationRepository = reservationRepository;
+        this.resourceRepository = resourceRepository;
+        this.userRepository = userRepository;
+        this.reservationSecurityService = (reservationSecurityService != null)
+                ? reservationSecurityService
+                : new ReservationSecurityService(reservationRepository);
+    }
 
     public ReservationService(
             ReservationRepository reservationRepository,
             ResourceRepository resourceRepository,
             UserRepository userRepository) {
 
-        this.reservationRepository = reservationRepository;
-        this.resourceRepository = resourceRepository;
-        this.userRepository = userRepository;
+        this(reservationRepository, resourceRepository, userRepository,
+                new ReservationSecurityService(reservationRepository));
     }
 
     /**
@@ -185,6 +199,11 @@ public class ReservationService {
         validateResourceAvailability(resource);
         validateNoOverlappingReservation(resource.getId(), reservation.getId(), request.getStartTime(), request.getEndTime());
 
+        boolean resourceChanged = !reservation.getResource().getId().equals(resource.getId());
+        boolean timeChanged = !reservation.getStartTime().isEqual(request.getStartTime())
+                || !reservation.getEndTime().isEqual(request.getEndTime());
+        boolean scheduleChanged = resourceChanged || timeChanged;
+
         reservation.setResource(resource);
         reservation.setStartTime(request.getStartTime());
         reservation.setEndTime(request.getEndTime());
@@ -192,12 +211,13 @@ public class ReservationService {
 
         // Status update logic:
         // If updated by ADMIN, apply requested status if provided.
-        // If updated by regular USER, reset status to PENDING so changes require re-approval.
+        // If updated by regular USER, only reset status to PENDING if resource or time slot changed
+        // so that schedule modifications require re-approval, while preserving current status otherwise.
         if (user.getRole() == Role.ADMIN) {
             if (request.getStatus() != null) {
                 reservation.setStatus(request.getStatus());
             }
-        } else {
+        } else if (scheduleChanged) {
             reservation.setStatus(ReservationStatus.PENDING);
         }
 
@@ -225,10 +245,7 @@ public class ReservationService {
         checkOwnership(reservation, user);
 
         reservationRepository.delete(reservation);
-        RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
-        if (attributes != null) {
-            attributes.removeAttribute(ReservationSecurityService.CACHE_PREFIX + id, RequestAttributes.SCOPE_REQUEST);
-        }
+        reservationSecurityService.evictReservation(id);
         log.info("Deleted reservation id={} by user='{}'", id, user.getUsername());
     }
 
@@ -283,6 +300,9 @@ public class ReservationService {
             BigDecimal maxPrice) {
 
         return (root, query, criteriaBuilder) -> {
+            if (query != null) {
+                query.distinct(true);
+            }
 
             List<Predicate> predicates = new ArrayList<>();
 
@@ -304,7 +324,7 @@ public class ReservationService {
         if (user.getRole() == Role.USER) {
             predicates.add(
                     criteriaBuilder.equal(
-                            root.join("user").get("id"),
+                            root.get("user").get("id"),
                             user.getId()));
         }
     }
@@ -352,24 +372,7 @@ public class ReservationService {
     }
 
     private Reservation findReservation(Long id) {
-        RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
-        String cacheKey = ReservationSecurityService.CACHE_PREFIX + id;
-        if (attributes != null) {
-            Object cached = attributes.getAttribute(cacheKey, RequestAttributes.SCOPE_REQUEST);
-            if (cached instanceof Reservation) {
-                return (Reservation) cached;
-            }
-        }
-
-        Reservation reservation = reservationRepository
-                .findById(id)
-                .orElseThrow(() -> new ReservationNotFoundException(
-                        "Reservation not found with id: " + id));
-
-        if (attributes != null) {
-            attributes.setAttribute(cacheKey, reservation, RequestAttributes.SCOPE_REQUEST);
-        }
-        return reservation;
+        return reservationSecurityService.getReservation(id);
     }
 
     private Resource findResource(Long resourceId) {

@@ -52,17 +52,31 @@ public class ResourceService {
     }
 
     /**
-     * Retrieves all available and registered resources.
+     * Retrieves registered resources, optionally filtering for only available resources.
+     *
+     * @param availableOnly if true, returns only available resources; otherwise returns all resources
+     * @return list of resource response DTOs
+     */
+    public List<ResourceResponse> getAll(Boolean availableOnly) {
+
+        List<Resource> resources = Boolean.TRUE.equals(availableOnly)
+                ? resourceRepository.findByAvailableTrue()
+                : resourceRepository.findAll();
+
+        return resources
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    /**
+     * Retrieves all registered resources.
      *
      * @return list of all resource response DTOs
      */
     public List<ResourceResponse> getAll() {
 
-        return resourceRepository
-                .findAll()
-                .stream()
-                .map(this::toResponse)
-                .toList();
+        return getAll(null);
     }
 
     /**

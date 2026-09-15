@@ -75,6 +75,7 @@ public class SecurityConfig {
                         // Public endpoints
                         .requestMatchers(
                                 new AntPathRequestMatcher("/auth/**"),
+                                new AntPathRequestMatcher("/api/auth/**"),
                                 new AntPathRequestMatcher("/swagger-ui/**"),
                                 new AntPathRequestMatcher("/swagger-ui.html"),
                                 new AntPathRequestMatcher("/v3/api-docs/**"))
@@ -91,7 +92,8 @@ public class SecurityConfig {
 
                         // Reservation endpoints: USER and ADMIN can access; Service layer enforces user ownership
                         .requestMatchers(
-                                new AntPathRequestMatcher("/reservations/**"))
+                                new AntPathRequestMatcher("/reservations/**"),
+                                new AntPathRequestMatcher("/api/reservations/**"))
                         .hasAnyRole("USER", "ADMIN")
 
                         // Everything else requires authentication
