@@ -27,30 +27,41 @@ A secure, production-ready RESTful Resource Booking System backend developed wit
 
 ## 👥 Seed Users & Pre-configured Data
 
-Upon startup, the system seeds initial users (if not present) and default resources:
+Upon startup, the system seeds initial administrative and standard users (if not present) and default resources. The passwords for seed users are configured via environment variables:
 
-| Username | Password | Role | Permissions |
-|---|---|---|---|
-| `admin` | `admin123` | `ADMIN` | Full CRUD on resources and all reservations |
-| `user` | `user123` | `USER` | Read-only resources; create and manage own reservations |
+| Username | Role | Permissions |
+|---|---|---|
+| `admin` | `ADMIN` | Full CRUD on resources and all reservations |
+| `user` | `USER` | Read-only resources; create and manage own reservations |
 
 ---
 
 ## ⚙️ Configuration & Environment Variables
 
-The application can be configured via environment variables or default local fallbacks:
+The application relies exclusively on environment variables for sensitive credentials:
 
-| Variable | Description | Default / Development Fallback |
+| Variable | Description | Requirement / Fallback |
 |---|---|---|
-| `DB_URL` | PostgreSQL JDBC URL | `jdbc:postgresql://localhost:5432/resource_booking_db` |
-| `DB_USERNAME` | PostgreSQL username | `postgres` |
-| `DB_PASSWORD` | PostgreSQL password | `postgres` |
-| `JWT_SECRET` | 256-bit Base64-encoded secret key | `dGhpcy1pcy1hLXNhbXBsZS1qd3Qtc2VjcmV0LWtleS1mb3ItZGV2ZWxvcG1lbnQtb25seQ==` |
-| `SEED_ADMIN_PASSWORD`| Initial seeded `admin` user password | `admin123` |
-| `SEED_USER_PASSWORD` | Initial seeded `user` password | `user123` |
-| `JPA_DDL_AUTO` | Hibernate DDL mode (`validate`, `update`, `create-drop`) | `validate` |
+| `DB_URL` | PostgreSQL JDBC URL | Default: `jdbc:postgresql://localhost:5432/resource_booking_db` |
+| `DB_USERNAME` | PostgreSQL username | Default: `postgres` |
+| `DB_PASSWORD` | PostgreSQL password | **Required** via environment variable |
+| `JWT_SECRET` | 256-bit Base64-encoded secret key | **Required** via environment variable (fail-fast startup validation) |
+| `SEED_ADMIN_PASSWORD`| Initial seeded `admin` user password | **Required** via environment variable |
+| `SEED_USER_PASSWORD` | Initial seeded `user` password | **Required** via environment variable |
+| `JPA_DDL_AUTO` | Hibernate DDL mode (`validate`, `update`) | Default: `validate` (Schema auto-initialized by `schema.sql`) |
 
-> **Security Note**: In production, always supply a strong, unique 256-bit Base64-encoded secret via `JWT_SECRET` and maintain `JPA_DDL_AUTO=validate`.
+### Generating a Secure JWT Secret
+To generate a secure 256-bit (32-byte) Base64-encoded signing key, run:
+```bash
+# Using OpenSSL:
+openssl rand -base64 32
+```
+Set the generated key in your environment before running the application:
+```bash
+export JWT_SECRET="<your-generated-base64-secret>"
+```
+
+> **Security Note**: Public sample secrets and weak default passwords are systematically rejected on application startup. In all environments, supply unique, strong values via environment variables.
 
 ---
 

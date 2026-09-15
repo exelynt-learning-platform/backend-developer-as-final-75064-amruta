@@ -28,6 +28,10 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
+
+import com.example.resourcebooking.security.ReservationSecurityService;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -120,7 +124,7 @@ public class ReservationService {
         User user = getAuthenticatedUser(authentication);
 
         if (criteria == null) {
-            criteria = new ReservationSearchCriteria();
+            throw new BadRequestException("Search criteria must not be null");
         }
 
         criteria.validate();
@@ -221,6 +225,10 @@ public class ReservationService {
         checkOwnership(reservation, user);
 
         reservationRepository.delete(reservation);
+        RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
+        if (attributes != null) {
+            attributes.removeAttribute(ReservationSecurityService.CACHE_PREFIX + id, RequestAttributes.SCOPE_REQUEST);
+        }
         log.info("Deleted reservation id={} by user='{}'", id, user.getUsername());
     }
 
@@ -344,11 +352,24 @@ public class ReservationService {
     }
 
     private Reservation findReservation(Long id) {
+        RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
+        String cacheKey = ReservationSecurityService.CACHE_PREFIX + id;
+        if (attributes != null) {
+            Object cached = attributes.getAttribute(cacheKey, RequestAttributes.SCOPE_REQUEST);
+            if (cached instanceof Reservation) {
+                return (Reservation) cached;
+            }
+        }
 
-        return reservationRepository
+        Reservation reservation = reservationRepository
                 .findById(id)
                 .orElseThrow(() -> new ReservationNotFoundException(
                         "Reservation not found with id: " + id));
+
+        if (attributes != null) {
+            attributes.setAttribute(cacheKey, reservation, RequestAttributes.SCOPE_REQUEST);
+        }
+        return reservation;
     }
 
     private Resource findResource(Long resourceId) {

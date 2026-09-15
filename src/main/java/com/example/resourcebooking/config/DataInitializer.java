@@ -6,13 +6,13 @@ import com.example.resourcebooking.model.User;
 import com.example.resourcebooking.repository.ResourceRepository;
 import com.example.resourcebooking.repository.UserRepository;
 
+import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-import javax.annotation.PostConstruct;
 import java.math.BigDecimal;
 
 /**
@@ -20,7 +20,7 @@ import java.math.BigDecimal;
  * Validates that seed credentials are properly supplied.
  */
 @Configuration
-public class DataInitializer {
+public class DataInitializer implements InitializingBean {
 
     @Value("${seed.admin.password:}")
     private String adminPassword;
@@ -28,8 +28,8 @@ public class DataInitializer {
     @Value("${seed.user.password:}")
     private String userPassword;
 
-    @PostConstruct
-    public void validateSeedConfiguration() {
+    @Override
+    public void afterPropertiesSet() {
         if (adminPassword == null || adminPassword.isBlank()) {
             throw new IllegalStateException("SEED_ADMIN_PASSWORD environment variable is required and must not be blank.");
         }

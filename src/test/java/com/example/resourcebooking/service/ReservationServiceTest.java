@@ -238,6 +238,20 @@ class ReservationServiceTest {
     }
 
     @Test
+    @DisplayName("Should throw BadRequestException when criteria is null")
+    void testGetReservations_ThrowsWhenCriteriaIsNull() {
+        when(authentication.isAuthenticated()).thenReturn(true);
+        when(authentication.getName()).thenReturn("john_doe");
+        when(userRepository.findByUsername("john_doe")).thenReturn(Optional.of(testUser));
+
+        BadRequestException ex = assertThrows(
+                BadRequestException.class,
+                () -> reservationService.getReservations(authentication, null));
+
+        assertEquals("Search criteria must not be null", ex.getMessage());
+    }
+
+    @Test
     @DisplayName("Should retrieve reservations with ReservationSearchCriteria")
     void testGetReservations_SuccessWithCriteria() {
         when(authentication.isAuthenticated()).thenReturn(true);
